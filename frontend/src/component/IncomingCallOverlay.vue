@@ -18,6 +18,15 @@ const isMutedLocal = ref(false)
 const isSpeakerOn = ref(false)
 
 const activeAnalysis = ref<any>(null)
+const activeAudio = ref<HTMLAudioElement | null>(null)
+
+const stopActiveAudio = () => {
+  if (activeAudio.value) {
+    console.log('[Audio] Stopping active speech audio.')
+    activeAudio.value.pause()
+    activeAudio.value = null
+  }
+}
 
 // Web Speech API states
 let recognition: any = null
@@ -112,25 +121,49 @@ const stopSTT = () => {
   }
 }
 
-// Simulate Attacker Speech (Visual Caption Duration)
+// Synthesize and play Attacker Speech (Local ChatTTS stream integration)
 const triggerAttackerSpeech = () => {
   const step = currentVoiceStep.value
   if (!step) return
 
   stopSTT()
   userSpokenText.value = ''
+  stopActiveAudio()
   
   isAttackerSpeaking.value = true
   
-  // Calculate simulated reading time based on text length (approx 80ms per character, min 1500ms, max 5000ms)
-  const textLength = step.dialogue.length
-  const speechDuration = Math.min(Math.max(textLength * 80, 1500), 5000)
+  // Call backend streaming endpoint (/api/v1/calls/stream?text=...)
+  const streamUrl = `/api/v1/calls/stream?text=${encodeURIComponent(step.dialogue)}`
+  console.log(`[TTS Audio Request] Playing text: "${step.dialogue}" via URL: ${streamUrl}`)
+  
+  const audioObj = new Audio(streamUrl)
+  activeAudio.value = audioObj
+  
+  audioObj.play().catch(e => {
+    console.warn('[Audio Playback Blocked/Failed] Fallback to simulated reading duration.', e)
+    const textLength = step.dialogue.length
+    const speechDuration = Math.min(Math.max(textLength * 80, 1500), 5000)
+    setTimeout(() => {
+      if (isAttackerSpeaking.value) {
+        isAttackerSpeaking.value = false
+        startSTT()
+      }
+    }, speechDuration)
+  })
 
-  setTimeout(() => {
+  audioObj.onended = () => {
+    console.log('[TTS Speech Ended] Normal ending. Activating user listener.')
     isAttackerSpeaking.value = false
-    console.log('[Visual speech ended] Start listening to user.')
+    activeAudio.value = null
     startSTT()
-  }, speechDuration)
+  }
+
+  audioObj.onerror = (err) => {
+    console.error('[TTS Audio Error] Audio stream error. Falling back.', err)
+    isAttackerSpeaking.value = false
+    activeAudio.value = null
+    startSTT()
+  }
 }
 
 // Logic to evaluate spoken words
@@ -210,6 +243,8 @@ const handleChoiceDirectly = async (choiceIndex: number) => {
 const recordSuccessHangUp = async (stepIndex: number) => {
   const scenario = store.activeScenario
   if (!scenario) return
+
+  stopActiveAudio()
 
   if (timerId) {
     clearInterval(timerId)
@@ -294,6 +329,8 @@ const recordSuccessHangUp = async (stepIndex: number) => {
 const recordFailedCall = async () => {
   const scenario = store.activeScenario
   if (!scenario) return
+
+  stopActiveAudio()
 
   if (timerId) {
     clearInterval(timerId)
@@ -399,12 +436,14 @@ watch(() => store.simStatus as any, (newStatus: any) => {
       timerId = null
     }
     stopSTT()
+    stopActiveAudio()
   }
 })
 
 onUnmounted(() => {
   if (timerId) clearInterval(timerId)
   stopSTT()
+  stopActiveAudio()
 })
 
 const handleDecline = async () => {
@@ -464,28 +503,28 @@ const closeReport = () => {
       :class="['absolute inset-0 z-50 flex flex-col select-none overflow-hidden transition-colors duration-300', store.simStatus === 'CALL_REPORT' ? 'bg-white text-slate-800' : 'bg-slate-950 text-white']"
     >
       <!-- A. RINGING STATE -->
-      <div v-if="store.simStatus === 'RINGING' && store.activeScenario" class="flex-1 flex flex-col justify-between py-12 px-6 animate-fade-in">
+      <div v-if="store.simStatus === 'RINGING' && store.activeScenario" class="flex-1 flex flex-col justify-between py-6 xs:py-12 px-6 animate-fade-in">
         
         <!-- Caller Info Header -->
-        <div class="text-center mt-12 space-y-3">
-          <p class="text-sm text-blue-400 font-extrabold uppercase tracking-widest animate-pulse">
+        <div class="text-center mt-6 xs:mt-12 space-y-2 xs:space-y-3">
+          <p class="text-xs xs:text-sm text-blue-400 font-extrabold uppercase tracking-widest animate-pulse">
             훈련 전화 수신 중
           </p>
-          <h2 class="text-3xl font-black tracking-tight text-white mt-1 whitespace-pre-line">
+          <h2 class="text-2xl xs:text-3xl font-black tracking-tight text-white mt-1 whitespace-pre-line">
             {{ store.activeScenario.sender }}
           </h2>
-          <p class="text-base text-slate-300 font-semibold whitespace-pre-line">
+          <p class="text-sm xs:text-base text-slate-300 font-semibold whitespace-pre-line">
             {{ store.activeScenario.title }}
           </p>
         </div>
 
         <!-- Pulse Ring Phone Graphic -->
-        <div class="flex items-center justify-center my-6">
-          <div class="relative flex items-center justify-center w-36 h-36">
+        <div class="flex items-center justify-center my-4 xs:my-6">
+          <div class="relative flex items-center justify-center w-28 h-28 xs:w-36 xs:h-36">
             <div class="absolute inset-0 rounded-full bg-blue-500/10 animate-ping duration-1000"></div>
             <div class="absolute inset-4 rounded-full bg-blue-500/20 animate-pulse"></div>
-            <div class="relative w-20 h-20 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center shadow-xl">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-9 h-9 fill-slate-100" viewBox="0 0 24 24">
+            <div class="relative w-14 h-14 xs:w-20 xs:h-20 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center shadow-xl">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 xs:w-9 xs:h-9 fill-slate-100" viewBox="0 0 24 24">
                 <path d="M20 15.5c-1.25 0-2.45-.2-3.57-.57a1.02 1.02 0 0 0-1.02.24l-2.2 2.2a15.045 15.045 0 0 1-6.59-6.59l2.2-2.2c.28-.28.36-.67.25-1.02A11.36 11.36 0 0 1 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/>
               </svg>
             </div>
@@ -493,9 +532,9 @@ const closeReport = () => {
         </div>
 
         <!-- Ringing Actions -->
-        <div class="flex items-center justify-between w-full px-14 mb-8">
+        <div class="flex items-center justify-between w-full px-6 xs:px-14 mb-4 xs:mb-8">
           <!-- Accept Column (Left) -->
-          <div class="flex flex-col items-center gap-6">
+          <div class="flex flex-col items-center gap-4 xs:gap-6">
             <!-- Remind Me Button -->
             <button class="flex flex-col items-center gap-1.5 active:scale-95 transition-all text-slate-400 hover:text-slate-350">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
@@ -506,22 +545,22 @@ const closeReport = () => {
             </button>
 
             <!-- Accept Button -->
-            <div class="flex flex-col items-center gap-2">
+            <div class="flex flex-col items-center gap-1.5 xs:gap-2">
               <button 
                 @click="handleAccept"
-                class="w-20 h-20 rounded-full bg-emerald-500 hover:bg-emerald-400 flex items-center justify-center text-3xl shadow-[0_4px_25px_rgba(16,185,129,0.5)] animate-soft-pulse transition-all active:scale-90"
+                class="w-16 h-16 xs:w-20 xs:h-20 rounded-full bg-emerald-500 hover:bg-emerald-400 flex items-center justify-center text-2xl xs:text-3xl shadow-[0_4px_25px_rgba(16,185,129,0.5)] animate-soft-pulse transition-all active:scale-90"
               >
                 <!-- Accept Phone Icon -->
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-9 h-9 fill-white" viewBox="0 0 24 24">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 xs:w-9 xs:h-9 fill-white" viewBox="0 0 24 24">
                   <path d="M20 15.5c-1.25 0-2.45-.2-3.57-.57a1.02 1.02 0 0 0-1.02.24l-2.2 2.2a15.045 15.045 0 0 1-6.59-6.59l2.2-2.2c.28-.28.36-.67.25-1.02A11.36 11.36 0 0 1 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/>
                 </svg>
               </button>
-              <span class="text-sm text-slate-300 font-bold mt-1">응답</span>
+              <span class="text-xs xs:text-sm text-slate-300 font-bold mt-1">응답</span>
             </div>
           </div>
 
           <!-- Decline Column (Right) -->
-          <div class="flex flex-col items-center gap-6">
+          <div class="flex flex-col items-center gap-4 xs:gap-6">
             <!-- Message Button -->
             <button class="flex flex-col items-center gap-1.5 active:scale-95 transition-all text-slate-400 hover:text-slate-350">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
@@ -531,17 +570,17 @@ const closeReport = () => {
             </button>
 
             <!-- Decline Button -->
-            <div class="flex flex-col items-center gap-2">
+            <div class="flex flex-col items-center gap-1.5 xs:gap-2">
               <button 
                 @click="handleDecline"
-                class="w-20 h-20 rounded-full bg-rose-600 hover:bg-rose-500 flex items-center justify-center text-3xl shadow-[0_4px_25px_rgba(225,29,72,0.5)] transition-all active:scale-90"
+                class="w-16 h-16 xs:w-20 xs:h-20 rounded-full bg-rose-600 hover:bg-rose-500 flex items-center justify-center text-2xl xs:text-3xl shadow-[0_4px_25px_rgba(225,29,72,0.5)] transition-all active:scale-90"
               >
                 <!-- Decline Phone Icon -->
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-9 h-9 fill-white rotate-[135deg]" viewBox="0 0 24 24">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 xs:w-9 xs:h-9 fill-white rotate-[135deg]" viewBox="0 0 24 24">
                   <path d="M21 16.5c0 .38-.21.71-.53.88l-4.87 2.44c-.38.19-.85.12-1.15-.18l-3.38-3.38c-.3-.3-.37-.77-.18-1.15l2.44-4.87c.17-.32.5-.53.88-.53h4.75c.55 0 1 .45 1 1v5.74zM3 7.5c0-.55.45-1 1-1h4.75c.38 0 .71.21.88.53l2.44 4.87c.19.38.12.85-.18 1.15l-3.38 3.38c-.3.3-.77.37-1.15.18L4.53 14c-.32-.17-.53-.5-.53-.88V7.5z"/>
                 </svg>
               </button>
-              <span class="text-sm text-slate-300 font-bold mt-1">거절</span>
+              <span class="text-xs xs:text-sm text-slate-300 font-bold mt-1">거절</span>
             </div>
           </div>
         </div>
@@ -549,31 +588,31 @@ const closeReport = () => {
       </div>
 
       <!-- B. CONNECTED ACTIVE CALL STATE -->
-      <div v-else-if="store.simStatus === 'CONNECTED' && store.activeScenario" class="flex-1 flex flex-col justify-between py-12 px-6 animate-fade-in">
+      <div v-else-if="store.simStatus === 'CONNECTED' && store.activeScenario" class="flex-1 flex flex-col justify-between py-6 xs:py-12 px-6 animate-fade-in">
         
         <!-- Active Call Header -->
-        <div class="text-center mt-12 space-y-2">
-          <h2 class="text-3xl font-black tracking-tight text-white whitespace-pre-line">
+        <div class="text-center mt-6 xs:mt-12 space-y-1 xs:space-y-2">
+          <h2 class="text-2xl xs:text-3xl font-black tracking-tight text-white whitespace-pre-line">
             {{ store.activeScenario.sender }}
           </h2>
-          <p class="text-base text-emerald-400 font-extrabold tracking-widest uppercase">
+          <p class="text-sm xs:text-base text-emerald-400 font-extrabold tracking-widest uppercase">
             {{ formatDuration(duration) }}
           </p>
         </div>
 
         <!-- Live Caption Banner (iOS style semi-transparent card) -->
-        <div v-if="currentVoiceStep" class="w-full max-w-xs mx-auto bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl p-4 my-2 text-left space-y-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.37)] animate-fade-in">
+        <div v-if="currentVoiceStep && false" class="w-full max-w-xs mx-auto bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl p-4 my-2 text-left space-y-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.37)] animate-fade-in">
           <div class="flex items-center gap-1.5">
             <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
             <span class="text-[9px] font-extrabold text-blue-400 uppercase tracking-widest">실시간 통화 자막 피드</span>
           </div>
           <p class="text-xs font-semibold text-slate-100 leading-relaxed">
-            "{{ currentVoiceStep.dialogue }}"
+            "{{ currentVoiceStep?.dialogue }}"
           </p>
         </div>
 
         <!-- User Voice Input & Recognition Feed -->
-        <div v-if="isListening || userSpokenText" class="w-full max-w-xs mx-auto bg-emerald-500/10 backdrop-blur-md border border-emerald-500/20 rounded-2xl p-4 my-2 text-left space-y-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.15)] animate-fade-in">
+        <div v-if="false && (isListening || userSpokenText)" class="w-full max-w-xs mx-auto bg-emerald-500/10 backdrop-blur-md border border-emerald-500/20 rounded-2xl p-4 my-2 text-left space-y-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.15)] animate-fade-in">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1.5">
               <span class="relative flex h-2 w-2">
@@ -602,7 +641,7 @@ const closeReport = () => {
               :key="idx"
               @click="handleChoiceDirectly(idx)"
               :class="[
-                'w-full py-2.5 px-4 rounded-xl text-xs font-bold text-left transition-all border shadow-sm active:scale-[0.98]',
+                'w-full py-2 xs:py-2.5 px-4 rounded-xl text-xs font-bold text-left transition-all border shadow-sm active:scale-[0.98]',
                 idx === 1 
                   ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-200 hover:text-rose-100' 
                   : 'bg-white/10 hover:bg-white/15 border-white/10 text-slate-200 hover:text-white'
@@ -619,15 +658,15 @@ const closeReport = () => {
         </div>
 
         <!-- Phone Grid Actions (Mock iOS Style) -->
-        <div class="grid grid-cols-3 gap-y-8 gap-x-8 max-w-xs mx-auto my-auto text-center">
-          <button @click="toggleMute" :class="['flex flex-col items-center justify-center w-20 h-20 mx-auto rounded-full transition-all', isMutedLocal ? 'bg-white text-slate-950 shadow-lg' : 'bg-white/10 hover:bg-white/20 text-white']">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 fill-current" viewBox="0 0 24 24">
+        <div class="grid grid-cols-3 gap-y-4 xs:gap-y-8 gap-x-4 xs:gap-x-8 max-w-xs mx-auto my-auto text-center">
+          <button @click="toggleMute" :class="['flex flex-col items-center justify-center w-16 h-16 xs:w-20 xs:h-20 mx-auto rounded-full transition-all', isMutedLocal ? 'bg-white text-slate-950 shadow-lg' : 'bg-white/10 hover:bg-white/20 text-white']">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 xs:w-7 xs:h-7 fill-current" viewBox="0 0 24 24">
               <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
             </svg>
-            <span class="text-[13px] font-bold mt-1.5">소리 끔</span>
+            <span class="text-[11px] xs:text-[13px] font-bold mt-1">소리 끔</span>
           </button>
-          <button class="flex flex-col items-center justify-center w-20 h-20 mx-auto bg-white/10 hover:bg-white/20 text-white rounded-full opacity-40 cursor-not-allowed">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 fill-current" viewBox="0 0 24 24">
+          <button class="flex flex-col items-center justify-center w-16 h-16 xs:w-20 xs:h-20 mx-auto bg-white/10 hover:bg-white/20 text-white rounded-full opacity-40 cursor-not-allowed">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 xs:w-7 xs:h-7 fill-current" viewBox="0 0 24 24">
               <circle cx="6" cy="5" r="2"/>
               <circle cx="12" cy="5" r="2"/>
               <circle cx="18" cy="5" r="2"/>
@@ -638,46 +677,46 @@ const closeReport = () => {
               <circle cx="12" cy="19" r="2"/>
               <circle cx="18" cy="19" r="2"/>
             </svg>
-            <span class="text-[13px] font-bold mt-1.5">키패드</span>
+            <span class="text-[11px] xs:text-[13px] font-bold mt-1">키패드</span>
           </button>
-          <button @click="toggleSpeaker" :class="['flex flex-col items-center justify-center w-20 h-20 mx-auto rounded-full transition-all', isSpeakerOn ? 'bg-white text-slate-950 shadow-lg' : 'bg-white/10 hover:bg-white/20 text-white']">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 fill-current" viewBox="0 0 24 24">
+          <button @click="toggleSpeaker" :class="['flex flex-col items-center justify-center w-16 h-16 xs:w-20 xs:h-20 mx-auto rounded-full transition-all', isSpeakerOn ? 'bg-white text-slate-950 shadow-lg' : 'bg-white/10 hover:bg-white/20 text-white']">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 xs:w-7 xs:h-7 fill-current" viewBox="0 0 24 24">
               <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
             </svg>
-            <span class="text-[13px] font-bold mt-1.5">스피커</span>
+            <span class="text-[11px] xs:text-[13px] font-bold mt-1">스피커</span>
           </button>
-          <button class="flex flex-col items-center justify-center w-20 h-20 mx-auto bg-white/10 hover:bg-white/20 text-white rounded-full opacity-40 cursor-not-allowed">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 fill-current" viewBox="0 0 24 24">
+          <button class="flex flex-col items-center justify-center w-16 h-16 xs:w-20 xs:h-20 mx-auto bg-white/10 hover:bg-white/20 text-white rounded-full opacity-40 cursor-not-allowed">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 xs:w-7 xs:h-7 fill-current" viewBox="0 0 24 24">
               <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
             </svg>
-            <span class="text-[13px] font-bold mt-1.5">통화 추가</span>
+            <span class="text-[11px] xs:text-[13px] font-bold mt-1">통화 추가</span>
           </button>
-          <button class="flex flex-col items-center justify-center w-20 h-20 mx-auto bg-white/10 hover:bg-white/20 text-white rounded-full opacity-40 cursor-not-allowed">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 fill-current" viewBox="0 0 24 24">
+          <button class="flex flex-col items-center justify-center w-16 h-16 xs:w-20 xs:h-20 mx-auto bg-white/10 hover:bg-white/20 text-white rounded-full opacity-40 cursor-not-allowed">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 xs:w-7 xs:h-7 fill-current" viewBox="0 0 24 24">
               <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
             </svg>
-            <span class="text-[13px] font-bold mt-1.5">FaceTime</span>
+            <span class="text-[11px] xs:text-[13px] font-bold mt-1">FaceTime</span>
           </button>
-          <button class="flex flex-col items-center justify-center w-20 h-20 mx-auto bg-white/10 hover:bg-white/20 text-white rounded-full opacity-40 cursor-not-allowed">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 fill-current" viewBox="0 0 24 24">
+          <button class="flex flex-col items-center justify-center w-16 h-16 xs:w-20 xs:h-20 mx-auto bg-white/10 hover:bg-white/20 text-white rounded-full opacity-40 cursor-not-allowed">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 xs:w-7 xs:h-7 fill-current" viewBox="0 0 24 24">
               <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
             </svg>
-            <span class="text-[13px] font-bold mt-1.5">연락처</span>
+            <span class="text-[11px] xs:text-[13px] font-bold mt-1">연락처</span>
           </button>
         </div>
 
         <!-- Hang Up Button -->
-        <div class="flex flex-col items-center mb-8">
+        <div class="flex flex-col items-center mb-4 xs:mb-8">
           <button 
             @click="handleDecline"
-            class="w-20 h-20 rounded-full bg-rose-600 hover:bg-rose-500 flex items-center justify-center text-3xl shadow-[0_4px_25px_rgba(225,29,72,0.5)] transition-all active:scale-90"
+            class="w-16 h-16 xs:w-20 xs:h-20 rounded-full bg-rose-600 hover:bg-rose-500 flex items-center justify-center text-2xl xs:text-3xl shadow-[0_4px_25px_rgba(225,29,72,0.5)] transition-all active:scale-90"
           >
             <!-- Decline Phone Icon -->
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 fill-white rotate-[135deg]" viewBox="0 0 24 24">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 xs:w-8 xs:h-8 fill-white rotate-[135deg]" viewBox="0 0 24 24">
               <path d="M21 16.5c0 .38-.21.71-.53.88l-4.87 2.44c-.38.19-.85.12-1.15-.18l-3.38-3.38c-.3-.3-.37-.77-.18-1.15l2.44-4.87c.17-.32.5-.53.88-.53h4.75c.55 0 1 .45 1 1v5.74zM3 7.5c0-.55.45-1 1-1h4.75c.38 0 .71.21.88.53l2.44 4.87c.19.38.12.85-.18 1.15l-3.38 3.38c-.3.3-.77.37-1.15.18L4.53 14c-.32-.17-.53-.5-.53-.88V7.5z"/>
             </svg>
           </button>
-          <span class="text-sm text-slate-300 font-bold mt-2">통화 종료</span>
+          <span class="text-xs xs:text-sm text-slate-300 font-bold mt-2">통화 종료</span>
         </div>
 
       </div>

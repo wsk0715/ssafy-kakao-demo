@@ -20,9 +20,9 @@ const trainingStore = useTrainingStore()
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-100 text-slate-850 font-sans flex items-center justify-center p-0 md:p-4">
+  <div class="min-h-screen bg-slate-100 text-slate-850 font-sans flex items-center justify-center p-0 xs:p-4">
     <!-- Phone Frame Shell Simulator -->
-    <div class="w-full max-w-md h-screen md:h-[840px] bg-white border border-slate-200/80 md:rounded-[40px] md:shadow-[0_24px_60px_-15px_rgba(15,23,42,0.12)] overflow-hidden flex flex-col relative md:ring-8 md:ring-slate-100">
+    <div class="w-full xs:max-w-md h-screen xs:h-[840px] bg-white border border-slate-200/80 xs:rounded-[40px] xs:shadow-[0_24px_60px_-15px_rgba(15,23,42,0.12)] overflow-hidden flex flex-col relative xs:ring-8 xs:ring-slate-100">
       
       <!-- Top Status/Header Bar -->
       <header class="bg-slate-50/90 backdrop-blur-md border-b border-slate-100 px-6 py-4 flex items-center justify-between flex-shrink-0 z-20">

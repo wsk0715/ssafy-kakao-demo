@@ -78,10 +78,27 @@ public class CallController implements CallApi {
         }
     }
 
+    private final TtsClient ttsClient;
+
+    public CallController(TtsClient ttsClient) {
+        this.ttsClient = ttsClient;
+    }
+
     @Override
     public String reportProgress(String userId, ProgressReport report) {
         log.info("[PROGRESS REPORT] User: {}, Status: {}, CurrentStep: {}", 
                 userId, report.getStatus(), report.getCurrentStep());
         return "Logged";
     }
+
+    @Override
+    public org.springframework.http.ResponseEntity<byte[]> streamAudio(String text) {
+        log.info("REST: Streaming audio synthesis request for text: '{}'", text);
+        byte[] audioBytes = ttsClient.synthesizeSpeech(text);
+        return org.springframework.http.ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.parseMediaType("audio/mpeg"))
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"speech.mp3\"")
+                .body(audioBytes);
+    }
 }
+

@@ -20,3 +20,6 @@ mybatis:
   type-aliases-package: com.example.demo_app.**.model
   configuration:
     map-underscore-to-camel-case: true
+
+tts:
+  api-url: ${LOCAL_TTS_URL}

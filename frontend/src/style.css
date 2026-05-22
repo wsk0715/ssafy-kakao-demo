@@ -2,4 +2,5 @@
 
 @theme {
   --font-sans: "Inter", "Noto Sans KR", system-ui, -apple-system, sans-serif;
+  --breakpoint-xs: 480px;
 }

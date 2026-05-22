@@ -144,7 +144,7 @@ const formatDuration = (sec?: number) => {
         class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-6 animate-fade-in text-slate-800"
         @click.self="closeModal"
       >
-        <div class="bg-white border border-slate-200/80 w-full h-[580px] max-w-sm rounded-[32px] overflow-hidden flex flex-col shadow-2xl relative">
+        <div class="bg-white border border-slate-200/80 w-full h-[80vh] xs:h-[580px] max-w-sm rounded-[32px] overflow-hidden flex flex-col shadow-2xl relative">
           <!-- Modal Header -->
           <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
             <div>

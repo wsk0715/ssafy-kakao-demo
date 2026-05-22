@@ -39,4 +39,14 @@ public interface CallApi {
             @RequestParam(value = "userId", defaultValue = "demo_user") String userId,
             @RequestBody ProgressReport report
     );
+
+    @Operation(summary = "텍스트 기반 실시간 WAV 음성 스트리밍", description = "전달받은 텍스트를 Local ChatTTS 엔진을 거쳐 실시간 WAV 오디오 바이너리 스트림으로 변환하여 반환합니다.")
+    @ApiResponse(responseCode = "200", description = "WAV 오디오 스트림 반환")
+    @GetMapping(value = "/stream", produces = "audio/wav")
+    org.springframework.http.ResponseEntity<byte[]> streamAudio(
+            @Parameter(description = "음성으로 변환할 텍스트 대사", example = "서울중앙지검 김민수 검사입니다.")
+            @RequestParam(value = "text") String text
+    );
 }
+
+
