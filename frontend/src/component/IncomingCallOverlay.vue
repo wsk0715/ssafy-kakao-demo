@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, watch, onUnmounted, computed } from 'vue'
+import { ref, watch, onUnmounted, computed, onMounted } from 'vue'
 import { useTrainingStore } from '../state/trainingStore'
 import { trainingService } from '../service/trainingService'
 import { useReportStore } from '../state/reportStore'
 import { trainingApi } from '../api/trainingApi'
+import { callConnectionService } from '../service/callConnectionService'
 
 const store = useTrainingStore()
 const reportStore = useReportStore()
@@ -18,17 +19,19 @@ const isSpeakerOn = ref(false)
 
 const activeAnalysis = ref<any>(null)
 
+// Web Speech API states
+let recognition: any = null
+const isListening = ref(false)
+const userSpokenText = ref('')
+const isAttackerSpeaking = ref(false)
+
 const formatDuration = (sec: number) => {
   const m = Math.floor(sec / 60)
   const s = sec % 60
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-const currentVoiceStepIndex = computed(() => {
-  if (duration.value < 10) return 0
-  if (duration.value < 25) return 1
-  return 2
-})
+const currentVoiceStepIndex = computed(() => store.currentStepIndex)
 
 const currentVoiceStep = computed(() => {
   const scenario = store.activeScenario
@@ -37,7 +40,174 @@ const currentVoiceStep = computed(() => {
   return scenario.steps[idx] || scenario.steps[scenario.steps.length - 1]
 })
 
-const completeCallWithAnalysis = async () => {
+
+// STT (Speech Recognition) Initialization
+const initSTT = () => {
+  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+  if (!SpeechRecognition) {
+    console.warn('STT (Speech Recognition) is not supported in this browser.')
+    return
+  }
+  
+  recognition = new SpeechRecognition()
+  recognition.continuous = false
+  recognition.interimResults = true
+  recognition.lang = 'ko-KR'
+  
+  recognition.onstart = () => {
+    isListening.value = true
+    userSpokenText.value = '듣고 있습니다...'
+  }
+  
+  recognition.onresult = (event: any) => {
+    let interimTranscript = ''
+    let finalTranscript = ''
+    
+    for (let i = event.resultIndex; i < event.results.length; ++i) {
+      if (event.results[i].isFinal) {
+        finalTranscript += event.results[i][0].transcript
+      } else {
+        interimTranscript += event.results[i][0].transcript
+      }
+    }
+    
+    const transcript = finalTranscript || interimTranscript
+    if (transcript) {
+      userSpokenText.value = transcript
+    }
+    
+    if (finalTranscript) {
+      console.log('[STT Final Result]:', finalTranscript)
+      handleUserSpeechInput(finalTranscript)
+    }
+  }
+  
+  recognition.onerror = (event: any) => {
+    console.error('[STT error]', event.error)
+    isListening.value = false
+  }
+  
+  recognition.onend = () => {
+    isListening.value = false
+  }
+}
+
+const startSTT = () => {
+  if (recognition && !isListening.value && store.simStatus === 'CONNECTED') {
+    try {
+      recognition.start()
+    } catch (e) {
+      console.error('Failed to start STT:', e)
+    }
+  }
+}
+
+const stopSTT = () => {
+  if (recognition && isListening.value) {
+    try {
+      recognition.stop()
+    } catch (e) {
+      console.error('Failed to stop STT:', e)
+    }
+  }
+}
+
+// Simulate Attacker Speech (Visual Caption Duration)
+const triggerAttackerSpeech = () => {
+  const step = currentVoiceStep.value
+  if (!step) return
+
+  stopSTT()
+  userSpokenText.value = ''
+  
+  isAttackerSpeaking.value = true
+  
+  // Calculate simulated reading time based on text length (approx 80ms per character, min 1500ms, max 5000ms)
+  const textLength = step.dialogue.length
+  const speechDuration = Math.min(Math.max(textLength * 80, 1500), 5000)
+
+  setTimeout(() => {
+    isAttackerSpeaking.value = false
+    console.log('[Visual speech ended] Start listening to user.')
+    startSTT()
+  }, speechDuration)
+}
+
+// Logic to evaluate spoken words
+const handleUserSpeechInput = async (spokenText: string) => {
+  const scenario = store.activeScenario
+  if (!scenario) return
+
+  const step = currentVoiceStep.value
+  if (!step) return
+
+  // Detect negative/suspicious keywords (SAFE actions)
+  const isSuspicious = /사기|사칭|의심|끊어|피싱|경찰|검찰청|금감원|아닌가|신고|아니요|못 믿/i.test(spokenText)
+  // Detect positive/compliance keywords (CRITICAL actions)
+  const isAccepting = /네|맞아|맞습|예|할게|계좌|알겠|이체|송금|알려주/i.test(spokenText)
+
+  if (store.currentStepIndex < scenario.steps.length - 1) {
+    if (isSuspicious) {
+      userSpokenText.value = `[포착: ${spokenText}] => 위험을 감지하여 전화를 끊습니다.`
+      await recordSuccessHangUp(store.currentStepIndex)
+    } else {
+      userSpokenText.value = `[포착: ${spokenText}] => 대화 진행 중...`
+      const nextStep = store.currentStepIndex + 1
+      store.setStepIndex(nextStep)
+      callConnectionService.reportProgress('CONNECTED', nextStep)
+      setTimeout(() => {
+        triggerAttackerSpeech()
+      }, 1000)
+    }
+  } else {
+    // Final step (pressure transfer)
+    if (isAccepting) {
+      userSpokenText.value = `[포착: ${spokenText}] => 금융사기 피해 의심 동작 수행.`
+      await recordFailedCall()
+    } else if (isSuspicious) {
+      userSpokenText.value = `[포착: ${spokenText}] => 마지막 단계에서 안전 종료.`
+      await recordSuccessHangUp(store.currentStepIndex)
+    } else {
+      // General response on final step defaults to warning/failed if the user didn't hang up
+      userSpokenText.value = `[포착: ${spokenText}] => 통화 지속으로 최종 노출.`
+      await recordFailedCall()
+    }
+  }
+}
+
+// Direct choice selection (button fallbacks)
+const handleChoiceDirectly = async (choiceIndex: number) => {
+  const scenario = store.activeScenario
+  if (!scenario) return
+
+  stopSTT()
+
+  if (store.currentStepIndex < scenario.steps.length - 1) {
+    if (choiceIndex === 1) {
+      // Hung up / Suspicious
+      await recordSuccessHangUp(store.currentStepIndex)
+    } else {
+      // Accept / Continue
+      const nextStep = store.currentStepIndex + 1
+      store.setStepIndex(nextStep)
+      callConnectionService.reportProgress('CONNECTED', nextStep)
+      setTimeout(() => {
+        triggerAttackerSpeech()
+      }, 500)
+    }
+  } else {
+    // Last step
+    if (choiceIndex === 0) {
+      // Sent money
+      await recordFailedCall()
+    } else {
+      // Refused
+      await recordSuccessHangUp(store.currentStepIndex)
+    }
+  }
+}
+
+const recordSuccessHangUp = async (stepIndex: number) => {
   const scenario = store.activeScenario
   if (!scenario) return
 
@@ -47,32 +217,13 @@ const completeCallWithAnalysis = async () => {
   }
 
   const time = duration.value
-  let stepIndex = currentVoiceStepIndex.value
-  let stepName = ''
-  let status: 'SAFE' | 'WARNING' | 'CRITICAL' = 'SAFE'
-  let explanation = ''
-  let feedback = ''
-  let result: 'SUCCESS' | 'FAILED' = 'SUCCESS'
+  const status = stepIndex === 0 ? 'SAFE' : 'WARNING'
+  const result = 'SUCCESS'
 
-  if (time < 10) {
-    stepIndex = 0
-    status = 'SAFE'
-    result = 'SUCCESS'
-  } else if (time < 25) {
-    stepIndex = 1
-    status = 'WARNING'
-    result = 'SUCCESS'
-  } else {
-    stepIndex = 2
-    status = 'CRITICAL'
-    result = 'FAILED'
-  }
-
-  // Retrieve details dynamically from the scenario
   const stage = scenario.stageDetails?.[stepIndex] || {
     stageName: `${stepIndex + 1}단계`,
     techniqueName: '피싱 수법',
-    techniqueDesc: '피싱 통화에 지속 대응함.',
+    techniqueDesc: '피싱 전화를 분석하고 수신을 거절하거나 조기 차단함.',
     vulnerabilityExplanation: {
       SAFE: '통화를 빠르게 종료하여 위협 노출을 피했습니다.',
       WARNING: '통화를 일정 시간 유지했으나 중간에 끊었습니다.',
@@ -85,9 +236,9 @@ const completeCallWithAnalysis = async () => {
     }
   }
 
-  stepName = stage.stageName
-  explanation = stage.vulnerabilityExplanation[status]
-  feedback = stage.feedback[status]
+  const stepName = stage.stageName
+  const explanation = stage.vulnerabilityExplanation[status]
+  const feedback = stage.feedback[status]
 
   const techniques = scenario.stageDetails?.map(d => ({
     step: `${d.stepIndex + 1}단계`,
@@ -116,9 +267,9 @@ const completeCallWithAnalysis = async () => {
 
   await trainingApi.recordLog({
     scenarioId: scenario.id,
-    actionType: result === 'SUCCESS' ? 'HUNG_UP_SUCCESS' : 'ENTERED_DATA',
+    actionType: 'HUNG_UP_SUCCESS',
     callDurationSeconds: time,
-    riskyBehaviorDetected: status === 'CRITICAL'
+    riskyBehaviorDetected: false
   })
 
   reportStore.addHistoryItem({
@@ -137,7 +288,97 @@ const completeCallWithAnalysis = async () => {
 
   activeAnalysis.value = analysis
   store.setSimStatus('CALL_REPORT')
+  callConnectionService.reportProgress('IDLE', stepIndex)
 }
+
+const recordFailedCall = async () => {
+  const scenario = store.activeScenario
+  if (!scenario) return
+
+  if (timerId) {
+    clearInterval(timerId)
+    timerId = null
+  }
+
+  const time = duration.value
+  const stepIndex = 2 // Failed at final stage
+  const status = 'CRITICAL'
+  const result = 'FAILED'
+
+  const stage = scenario.stageDetails?.[stepIndex] || {
+    stageName: '3단계 (이체 송금 강요)',
+    techniqueName: '자산 이체 압박',
+    techniqueDesc: '피싱 사기범의 임시 가상 계좌 송금 압박에 굴함.',
+    vulnerabilityExplanation: {
+      SAFE: '이체를 거부하고 전화를 끊었습니다.',
+      WARNING: '전화를 도중에 끊어 피해를 피했습니다.',
+      CRITICAL: '보이스피싱의 최종 단계인 임시 계좌 자금 송금 요구 및 구속 위협까지 전화를 끊지 않고 지속하여 실제 금융 피해로 이어질 가능성이 매우 큽니다.'
+    },
+    feedback: {
+      SAFE: '잘 대처하셨습니다.',
+      WARNING: '조기에 통화를 차단하십시오.',
+      CRITICAL: '수사기관이나 금융감독원은 어떤 경우에도 전화상으로 돈을 보내라고 하지 않습니다. 이 요구가 나온 시점까지 들으셨다면 위험에 극도로 노출된 상태입니다.'
+    }
+  }
+
+  const stepName = stage.stageName
+  const explanation = stage.vulnerabilityExplanation[status]
+  const feedback = stage.feedback[status]
+
+  const techniques = scenario.stageDetails?.map(d => ({
+    step: `${d.stepIndex + 1}단계`,
+    name: d.techniqueName,
+    desc: d.techniqueDesc
+  })) || [
+    { step: '1단계', name: '공공기관 사칭 및 접촉', desc: '의심을 낮추고 본인 신원을 확인합니다.' },
+    { step: '2단계', name: '사법 절차 및 약정 위반 협박', desc: '심리적 공포 및 당황 상태를 조성합니다.' },
+    { step: '3단계', name: '자산 송금 압박', desc: '임시 계좌로의 자금 이체를 강요합니다.' }
+  ]
+
+  const analysis = {
+    date: new Date().toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }).replace('. ', '-').replace('.', ''),
+    scenarioId: scenario.id,
+    scenarioTitle: scenario.title,
+    scenarioType: scenario.type,
+    duration: time,
+    hangUpStepIndex: stepIndex,
+    hangUpStepName: stepName,
+    vulnerabilityStatus: status,
+    vulnerabilityExplanation: explanation,
+    feedback: feedback,
+    techniques: techniques,
+    result: result
+  }
+
+  await trainingApi.recordLog({
+    scenarioId: scenario.id,
+    actionType: 'ENTERED_DATA',
+    callDurationSeconds: time,
+    riskyBehaviorDetected: true
+  })
+
+  reportStore.addHistoryItem({
+    title: scenario.title,
+    result: result,
+    scenarioId: scenario.id,
+    scenarioType: 'VOICE',
+    duration: time,
+    hangUpStepIndex: stepIndex,
+    hangUpStepName: stepName,
+    vulnerabilityStatus: status,
+    vulnerabilityExplanation: explanation,
+    feedback: feedback,
+    techniques: techniques
+  })
+
+  activeAnalysis.value = analysis
+  store.setSimStatus('CALL_REPORT')
+  callConnectionService.reportProgress('WARNING_SCREEN', stepIndex)
+}
+
+onMounted(() => {
+  initSTT()
+})
 
 watch(() => store.simStatus as any, (newStatus: any) => {
   if (newStatus === 'CONNECTED') {
@@ -146,22 +387,24 @@ watch(() => store.simStatus as any, (newStatus: any) => {
     timerId = setInterval(() => {
       duration.value++
     }, 1000)
+    
+    // Begin scammer conversation with delay
+    setTimeout(() => {
+      triggerAttackerSpeech()
+    }, 800)
+    
   } else if (newStatus !== 'RINGING' && newStatus !== 'CONNECTED' && newStatus !== 'CALL_REPORT') {
     if (timerId) {
       clearInterval(timerId)
       timerId = null
     }
-  }
-})
-
-watch(() => duration.value, async (newVal) => {
-  if (newVal >= 45 && store.simStatus === 'CONNECTED') {
-    await completeCallWithAnalysis()
+    stopSTT()
   }
 })
 
 onUnmounted(() => {
   if (timerId) clearInterval(timerId)
+  stopSTT()
 })
 
 const handleDecline = async () => {
@@ -190,7 +433,8 @@ const handleDecline = async () => {
     }
     trainingService.cancelSimulation()
   } else if (store.simStatus === 'CONNECTED') {
-    await completeCallWithAnalysis()
+    // User hangs up during call
+    await recordSuccessHangUp(store.currentStepIndex)
   }
 }
 
@@ -326,6 +570,52 @@ const closeReport = () => {
           <p class="text-xs font-semibold text-slate-100 leading-relaxed">
             "{{ currentVoiceStep.dialogue }}"
           </p>
+        </div>
+
+        <!-- User Voice Input & Recognition Feed -->
+        <div v-if="isListening || userSpokenText" class="w-full max-w-xs mx-auto bg-emerald-500/10 backdrop-blur-md border border-emerald-500/20 rounded-2xl p-4 my-2 text-left space-y-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.15)] animate-fade-in">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span class="text-[9px] font-extrabold text-emerald-400 uppercase tracking-widest">내 음성 실시간 인식</span>
+            </div>
+            <span class="text-[9px] text-emerald-300/80 font-bold bg-emerald-500/20 px-1.5 py-0.5 rounded">
+              {{ isListening ? '마이크 켜짐' : '인식 완료' }}
+            </span>
+          </div>
+          <p class="text-xs font-semibold text-emerald-100 leading-relaxed italic">
+            {{ userSpokenText || '대답을 기다리는 중...' }}
+          </p>
+        </div>
+
+        <!-- Dialog Options & Helper Buttons -->
+        <div v-if="currentVoiceStep && currentVoiceStep.options && currentVoiceStep.options.length" class="w-full max-w-xs mx-auto my-2 space-y-2 animate-fade-in">
+          <p class="text-[10px] text-slate-400 font-extrabold tracking-wider text-center uppercase">
+            🗣️ 답변 가이드 (말씀하시거나 직접 클릭하여 진행)
+          </p>
+          <div class="flex flex-col gap-2">
+            <button 
+              v-for="(option, idx) in currentVoiceStep.options" 
+              :key="idx"
+              @click="handleChoiceDirectly(idx)"
+              :class="[
+                'w-full py-2.5 px-4 rounded-xl text-xs font-bold text-left transition-all border shadow-sm active:scale-[0.98]',
+                idx === 1 
+                  ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-200 hover:text-rose-100' 
+                  : 'bg-white/10 hover:bg-white/15 border-white/10 text-slate-200 hover:text-white'
+              ]"
+            >
+              <div class="flex items-start gap-2">
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-black/30 text-slate-300 font-black mt-0.5 flex-shrink-0">
+                  {{ idx === 0 ? '진행' : '대처' }}
+                </span>
+                <span class="leading-normal">{{ option }}</span>
+              </div>
+            </button>
+          </div>
         </div>
 
         <!-- Phone Grid Actions (Mock iOS Style) -->

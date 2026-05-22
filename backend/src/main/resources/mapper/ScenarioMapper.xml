@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.demo_app.domain.scenarios.mapper.ScenarioMapper">
+
+    <select id="getAllScenarios" resultType="com.example.demo_app.domain.scenarios.model.Scenario">
+        SELECT 
+            id, 
+            type, 
+            title, 
+            sender, 
+            content, 
+            attacker_action AS attackerAction, 
+            warning_explanation AS warningExplanation, 
+            steps, 
+            stage_details AS stageDetails, 
+            sms_email_report AS smsEmailReport
+        FROM scenarios
+    </select>
+
+    <select id="getScenarioById" resultType="com.example.demo_app.domain.scenarios.model.Scenario">
+        SELECT 
+            id, 
+            type, 
+            title, 
+            sender, 
+            content, 
+            attacker_action AS attackerAction, 
+            warning_explanation AS warningExplanation, 
+            steps, 
+            stage_details AS stageDetails, 
+            sms_email_report AS smsEmailReport
+        FROM scenarios
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insertScenario">
+        INSERT INTO scenarios (id, type, title, sender, content, attacker_action, warning_explanation, steps, stage_details, sms_email_report, created_at)
+        VALUES (#{id}, #{type}, #{title}, #{sender}, #{content}, #{attackerAction}, #{warningExplanation}, #{steps}, #{stageDetails}, #{smsEmailReport}, NOW())
+        ON DUPLICATE KEY UPDATE
+            type = VALUES(type),
+            title = VALUES(title),
+            sender = VALUES(sender),
+            content = VALUES(content),
+            attacker_action = VALUES(attacker_action),
+            warning_explanation = VALUES(warning_explanation),
+            steps = VALUES(steps),
+            stage_details = VALUES(stage_details),
+            sms_email_report = VALUES(sms_email_report)
+    </insert>
+
+</mapper>
