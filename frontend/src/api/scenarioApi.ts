@@ -1,19 +1,50 @@
 // 5-layer architecture: API Layer for Scenario Generation
 // Returns mock scenarios for phishing training simulation
 
+export interface StageDetail {
+  stepIndex: number
+  stageName: string
+  techniqueName: string
+  techniqueDesc: string
+  vulnerabilityExplanation: {
+    SAFE: string
+    WARNING: string
+    CRITICAL: string
+  }
+  feedback: {
+    SAFE: string
+    WARNING: string
+    CRITICAL: string
+  }
+}
+
+export interface SmsEmailReport {
+  success: {
+    vulnerabilityExplanation: string
+    feedback: string
+  }
+  failed: {
+    vulnerabilityExplanation: string
+    feedback: string
+  }
+  techniques: { step: string; name: string; desc: string }[]
+}
+
 export interface Scenario {
   id: string
   type: 'VOICE' | 'SMS' | 'EMAIL'
   title: string
   sender: string
   content: string
-  attackerAction: string // What the attacker is asking the user to do (e.g., "송금", "앱 설치")
+  attackerAction: string
   steps: {
     dialogue: string
     isAttacker: boolean
     options?: string[]
   }[]
-  warningExplanation: string // Explanation shown after simulation completes
+  warningExplanation: string
+  stageDetails?: StageDetail[]
+  smsEmailReport?: SmsEmailReport
 }
 
 const mockScenarios: Scenario[] = [
@@ -21,7 +52,7 @@ const mockScenarios: Scenario[] = [
     id: 'voice_prosecutor',
     type: 'VOICE',
     title: '서울중앙지검\n김민수 검사 사칭',
-    sender: '02-1301-XXXX\n(서울중앙지검)',
+    sender: '02-1301-XXXX\n(서울중앙지검 사칭)',
     content: '귀하의 명의로 대포통장이 개설되어 범죄 자금 세탁에 이용되었습니다. 자산 보호를 위해 조치를 취해야 합니다.',
     attackerAction: '금감원 안전 계좌로 이체 유도',
     steps: [
@@ -41,7 +72,133 @@ const mockScenarios: Scenario[] = [
         options: ['알겠습니다. 지금 당장 알려주시는 계좌로 이체할게요.', '검찰청인데 왜 바로 이체를 시키죠? 의심스럽습니다.']
       }
     ],
-    warningExplanation: '검찰이나 금감원은 어떠한 경우에도 전화상으로 자산 보호나 혐의 입증을 이유로 임시 계좌로의 예금 송금을 요구하지 않습니다. 이 단계에서 돈을 송금하면 100% 보이스피싱 사기입니다.'
+    warningExplanation: '검찰이나 금감원은 어떠한 경우에도 전화상으로 자산 보호나 혐의 입증을 이유로 임시 계좌로의 예금 송금을 요구하지 않습니다. 이 단계에서 돈을 송금하면 100% 보이스피싱 사기입니다.',
+    stageDetails: [
+      {
+        stepIndex: 0,
+        stageName: '1단계 (수사기관 사칭 및 신원 확인)',
+        techniqueName: '공공기관(검찰) 사칭 및 신원 확인',
+        techniqueDesc: '공신력 있는 기관 이름을 대어 의심을 낮추고 본인 여부를 확인합니다.',
+        vulnerabilityExplanation: {
+          SAFE: '통화 시작 10초 이내에 서울중앙지검 김민수 검사 사칭을 인지하고 즉시 전화를 끊어 피싱 위험을 완벽히 차단했습니다.',
+          WARNING: '대포통장 개설 범죄 연루 주장을 듣기 전 통화를 종료하여 피싱 위험 노출 시간을 최소화하였습니다.',
+          CRITICAL: '전화를 장시간 지속하지 않고 조기 종료하였으나 보안 수칙 숙지가 필요합니다.'
+        },
+        feedback: {
+          SAFE: '모르는 번호로 온 전화에서 공기관을 사칭할 경우 바로 끊는 것이 가장 안전한 예방법입니다. 훌륭히 대처하셨습니다.',
+          WARNING: '수사기관 사칭 전화를 확인하는 즉시 전화를 끊어야 안전합니다.',
+          CRITICAL: '의심스러운 수사기관 전화를 받는 즉시 끊는 습관을 기르시기 바랍니다.'
+        }
+      },
+      {
+        stepIndex: 1,
+        stageName: '2단계 (대포통장 개설 및 범죄 연루 협박)',
+        techniqueName: '사법 절차 언급 및 범죄 연루 공포 조장',
+        techniqueDesc: '대포통장 등 법적 처벌 가능성을 언급해 심리적 공황 상태를 유발합니다.',
+        vulnerabilityExplanation: {
+          SAFE: '사기단이 공포심을 자극하며 법적 절차를 언급했으나, 본격적인 자금 이체 요구가 시작되기 전 침착하게 전화를 끊었습니다.',
+          WARNING: '대포통장 개설 및 금융 범죄 연루 주장 등의 공포심 유발 멘트를 청취했으나, 본격적인 자금 이체 요구가 시작되기 전에 전화를 차단했습니다.',
+          CRITICAL: '범죄 연루 위협에 긴 시간 전화를 유지하며 심리적 지배를 당할 위험에 노출되었습니다.'
+        },
+        feedback: {
+          SAFE: '공포심을 자극하여 이성을 흐리게 만드는 기법에 주의해야 합니다. 잘 끊으셨습니다.',
+          WARNING: '공포심을 자극하여 이성을 흐리게 만드는 기법에 주의해야 합니다. 앞으로는 범죄 연루 언급이 나오는 즉시 통화를 종료하십시오.',
+          CRITICAL: '경찰, 검찰 등 수사기관은 전화로 수사 협조를 빌미로 사법 절차를 압박하지 않습니다. 의심이 갈 때는 즉시 끊으십시오.'
+        }
+      },
+      {
+        stepIndex: 2,
+        stageName: '3단계 (금감원 자산보호 계좌 송금 요구)',
+        techniqueName: '자산 보호 명목 임시 계좌 송금 압박',
+        techniqueDesc: '구속영장 청구 등의 긴박한 위협과 함께 금감원 계좌로의 즉시 이체를 강요합니다.',
+        vulnerabilityExplanation: {
+          SAFE: '송금 압박 요구가 시작된 극단적 상황에서 다행히 결제를 진행하지 않고 통화를 종료해 최종 피해를 모면했습니다.',
+          WARNING: '자금 송금 강요 단계까지 통화를 유지했으나, 실제 이체를 완료하기 직전 전화를 끊어 위험에서 벗어났습니다.',
+          CRITICAL: '보이스피싱의 최종 단계인 임시 계좌 자금 송금 요구 및 구속 위협까지 전화를 끊지 않고 지속하여 실제 금융 피해로 이어질 가능성이 매우 큽니다.'
+        },
+        feedback: {
+          SAFE: '송금 요구 단계는 사기의 최종 관문입니다. 다음번에는 송금 요구가 나오기 훨씬 전에 통화를 종료하십시오.',
+          WARNING: '송금을 요구하는 즉시 100% 사기입니다. 전화를 바로 끊고 경찰(112)에 문의해야 합니다.',
+          CRITICAL: '수사기관이나 금융감독원은 어떤 경우에도 전화상으로 돈을 보내라고 하지 않습니다. 이 요구가 나온 시점까지 들으셨다면 위험에 극도로 노출된 상태입니다.'
+        }
+      }
+    ]
+  },
+  {
+    id: 'voice_loan',
+    type: 'VOICE',
+    title: '국민은행 사칭\n우대 금리 대환대출',
+    sender: '1588-XXXX\n(국민은행 사칭)',
+    content: '고객님은 정부지원 특별 저금리 대환 대출 조건에 해당하십니다. 계약 실행을 위해 기존 대출금을 즉시 상환하셔야 합니다.',
+    attackerAction: '금융감독원 가상계좌 입금 유도',
+    steps: [
+      {
+        dialogue: '안녕하십니까, 국민은행 여신지원팀실 대환대출 담당자 김과장입니다. 현재 특별 저금리 대환대출 대상자로 선정되셨는데 설명해 드릴까요?',
+        isAttacker: true,
+        options: ['네, 대환대출 한도와 금리가 어떻게 되나요?', '먼저 대출 전화하는 일은 금융 사기 아닌가요? 끊겠습니다.']
+      },
+      {
+        dialogue: '심사 도중 타 금융기관의 기존 대출 약정을 위반하신 정황이 발견되어 대출 계약 해지 및 신용불량 등재 절차가 긴급 개시될 상황입니다. 해결이 시급합니다.',
+        isAttacker: true,
+        options: ['약정 위반이라니요? 해결하려면 어떻게 해야 하나요?', '금융법 위반을 왜 전화로 통보합니까? 공식 확인해 보겠습니다.']
+      },
+      {
+        dialogue: '신용 불이익을 막고 심사를 재개하려면 기존 대출금 1,500만 원을 금융결제원 안전 가상계좌로 즉시 이체하셔야 상환 처리가 인정됩니다. 지금 알려드리는 계좌번호를 받아적으세요.',
+        isAttacker: true,
+        options: ['네, 알려주신 가상계좌로 기존 대출금 이체하겠습니다.', '금융사 명의가 아닌 개인/가상계좌 송금 유도는 보이스피싱 같네요. 끊습니다.']
+      }
+    ],
+    warningExplanation: '은행 등 금융기관은 어떠한 경우에도 전화로 타 명의의 임시 계좌나 가상계좌로 기존 대출금을 이체하라고 요구하거나, 약정 위반을 빌미로 즉시 현금 수납을 강요하지 않습니다.',
+    stageDetails: [
+      {
+        stepIndex: 0,
+        stageName: '1단계 (우량 은행 사칭 및 특별 대환대출 제안)',
+        techniqueName: '우량 금융기관 사칭 및 초저금리 유혹',
+        techniqueDesc: '공신력 있는 제1금융권 명칭과 파격적인 한도/금리를 제시하여 대출이 급한 사용자의 경계심을 낮춥니다.',
+        vulnerabilityExplanation: {
+          SAFE: '통화 시작 10초 이내에 금융기관을 사칭한 고금리 대환 대출 사기 전화를 인지하고 즉시 전화를 끊어 위험을 방지했습니다.',
+          WARNING: '대출 권유 전화의 미끼 단계를 조기에 감지하고 신속하게 통화를 차단해 위험을 예방했습니다.',
+          CRITICAL: '전환 대출의 위험성을 조기에 인지하지 못했으나 다행히 피해가 커지기 전에 끊었습니다.'
+        },
+        feedback: {
+          SAFE: '전화나 문자로 저금리 전환 대출을 권유하며 수수료나 선상환을 요구하는 것은 100% 사기입니다. 즉시 끊는 대처가 모범적입니다.',
+          WARNING: '금융사에서 전화를 먼저 걸어 대환대출을 권유하는 경우는 불법 영업이거나 피싱 사기입니다. 바로 끊으셔야 합니다.',
+          CRITICAL: '먼저 걸려온 대출 상담 전화는 무조건 끊는 것이 가장 안전한 대응 수칙입니다.'
+        }
+      },
+      {
+        stepIndex: 1,
+        stageName: '2단계 (기존 대출 약정 위반 및 계약 해지 공포 유발)',
+        techniqueName: '동시 대출 한도 위반 협박 및 신용 하락 공포 유발',
+        techniqueDesc: '신용평가사나 금융법 위반 정황이 발견되었다며 당장 기존 대출을 갚지 않으면 형사 고발이나 신용불량이 된다고 압박합니다.',
+        vulnerabilityExplanation: {
+          SAFE: '신용 불량 등록 협박 및 기존 대출 약정 위반 등의 다급한 거짓 멘트를 청취했으나, 자금 이체 요구가 시작되기 전 냉정히 전화를 끊었습니다.',
+          WARNING: '신용 불량 등록 협박 및 기존 대출 약정 위반 등의 다급한 거짓 멘트를 경청하였으나, 가상계좌 송금 요구 단계로 넘어가기 전 통화를 종료하여 추가 피해를 차단했습니다.',
+          CRITICAL: '약정 위반 협박에 위축되어 통화를 길게 지속함으로써 가짜 담당자의 통제 하에 노출되었습니다.'
+        },
+        feedback: {
+          SAFE: '약정 위반을 빌미로 계좌 이체나 현금 상환을 종용하면 100% 사기입니다. 현명하게 대처하셨습니다.',
+          WARNING: '상대방이 약정 위반 등을 빌미로 계좌 거래를 정지하겠다고 협박하더라도 절대 동요하지 마시고 전화를 끊은 뒤 해당 금융사 공식 고객센터로 진위 여부를 확인해야 합니다.',
+          CRITICAL: '어떤 금융사도 법 위반을 구실로 현금 수납이나 임시 계좌 송금을 요구하며 신용불량 위협을 가하지 않습니다. 전화를 즉시 중단하십시오.'
+        }
+      },
+      {
+        stepIndex: 2,
+        stageName: '3단계 (기존 대출 즉시 상환 및 가상계좌 입금 압박)',
+        techniqueName: '금융결제원 가상계좌 입금 또는 대면 상환 강요',
+        techniqueDesc: '기존 대출금을 지정하는 가상계좌로 즉시 상환 처리하거나 직원을 보낼 테니 대면 현금 수납을 하라고 최종 요구합니다.',
+        vulnerabilityExplanation: {
+          SAFE: '가상계좌 송금 압박이 거세지는 마지막 위기 단계에서 이체를 실행하지 않고 극적으로 통화를 종료했습니다.',
+          WARNING: '기존 대출금을 가상계좌로 즉시 입금하라는 위험 요구를 듣고 뒤늦게 피싱임을 의심하여 송금 전 통화를 종료했습니다.',
+          CRITICAL: '저금리 전환 대출 조건으로 기존 대출금을 금융사 임시 가상계좌로 즉시 이체하라는 요구 단계까지 듣고 통화를 지속하여 금융 사기 피해 가능성이 극도로 높습니다.'
+        },
+        feedback: {
+          SAFE: '가상계좌 상환이나 현금 전달 요구는 보이스피싱의 최종 요구입니다. 다음에는 이러한 낌새가 보이는 즉시 전화를 끊어주십시오.',
+          WARNING: '대출 상환금을 금융사 명의가 아닌 개인 명의 가상계좌나 타 계좌로 입금하라고 요구하는 것은 사기입니다. 즉시 끊으십시오.',
+          CRITICAL: '정상 금융기관은 어떠한 경우에도 전화를 통해 타인 명의나 가상계좌로 기존 대출금을 입금하라고 요구하지 않습니다. 이 요구가 나올 경우 즉시 전화를 끊고 경찰(112)에 신고하십시오.'
+        }
+      }
+    ]
   },
   {
     id: 'sms_delivery',
@@ -57,7 +214,21 @@ const mockScenarios: Scenario[] = [
         options: ['링크 클릭하여 주소 확인해보기', '무시하고 차단하기']
       }
     ],
-    warningExplanation: '택배사 및 우체국은 문자 메시지에 절대 불분명한 외부 링크(URL) 주소를 전송하지 않으며, 특히 주소 수정을 위해 앱 설치나 전화번호 인증을 강요하지 않습니다. 링크를 누르는 즉시 악성 앱이 다운로드되거나 개인정보가 탈취됩니다.'
+    warningExplanation: '택배사 및 우체국은 문자 메시지에 절대 불분명한 외부 링크(URL) 주소를 전송하지 않으며, 특히 주소 수정을 위해 앱 설치나 전화번호 인증을 강요하지 않습니다. 링크를 누르는 즉시 악성 앱이 다운로드되거나 개인정보가 탈취됩니다.',
+    smsEmailReport: {
+      success: {
+        vulnerabilityExplanation: '의심스러운 발신번호의 문자 링크를 누르지 않고 즉시 무시 및 차단하여 악성 앱 설치나 개인정보 유출을 성공적으로 예방했습니다.',
+        feedback: '택배나 공공기관 사칭 문자가 오면 링크를 절대 클릭하지 않고 공식 고객센터를 통해 확인하는 습관이 아주 바람직합니다.'
+      },
+      failed: {
+        vulnerabilityExplanation: '택배 배송 오류 사칭 문자에 포함된 외부 링크(URL)를 직접 클릭하여 가짜 주소 수정 사이트로 이동해 위험에 노출되었습니다.',
+        feedback: '택배사 및 우체국은 문자 메시지에 절대 외부 링크를 포함하여 전송하지 않습니다. 주소지 변경이나 반송 알림 문자의 링크는 100% 스미싱이므로 무시하고 바로 삭제해야 합니다.'
+      },
+      techniques: [
+        { step: '1단계', name: '택배 배송 불가 및 주소 수정 알림', desc: '주소 오류 등의 생활 밀착형 핑계로 긴급 링크 클릭을 유도합니다.' },
+        { step: '2단계', name: '가짜 본인 인증 및 개인정보 탈취', desc: '주소를 수정하려면 휴대폰 번호 인증을 해야 한다며 가짜 사이트에서 정보 입력을 요구합니다.' }
+      ]
+    }
   },
   {
     id: 'email_security',
@@ -73,7 +244,21 @@ const mockScenarios: Scenario[] = [
         options: ['비밀번호 재설정 링크 클릭하기', '메일 발송 도메인을 먼저 의심하고 스팸 신고하기']
       }
     ],
-    warningExplanation: '정상적인 카카오 메일 도메인은 `kakao.com` 또는 `kakaocorp.com` 입니다. 발송자의 이메일 철자(`kakoa-login.com`)가 교묘하게 틀려 있는 전형적인 이메일 피싱입니다. 로그인 페이지에서 비정상 입력을 하면 그대로 사칭 사이트로 정보가 수집되어 전송됩니다.'
+    warningExplanation: '정상적인 카카오 메일 도메인은 `kakao.com` 또는 `kakaocorp.com` 입니다. 발송자의 이메일 철자(`kakoa-login.com`)가 교묘하게 틀려 있는 전형적인 이메일 피싱입니다. 로그인 페이지에서 비정상 입력을 하면 그대로 사칭 사이트로 정보가 수집되어 전송됩니다.',
+    smsEmailReport: {
+      success: {
+        vulnerabilityExplanation: '보안 안내 메일의 링크 도메인이 공식 카카오 도메인이 아닌 사칭 피싱 주소임을 확인하고 입력을 중단하여 피해를 예방했습니다.',
+        feedback: '보안 안내 메일을 수신했을 때는 링크 주소창의 도메인 철자가 공식 사이트(kakao.com)와 정확히 일치하는지 항상 먼저 확인해야 합니다.'
+      },
+      failed: {
+        vulnerabilityExplanation: '카카오 계정 보안 경고로 사칭한 메일의 피싱 주소로 진입해 아이디와 현재 패스워드를 입력하여 계정이 탈취될 수 있는 치명적 피해가 예측됩니다.',
+        feedback: '보안 안내 메일을 수신했을 때는 링크 주소창의 도메인 철자가 공식 사이트(kakao.com)와 정확히 일치하는지 항상 먼저 확인해야 합니다.'
+      },
+      techniques: [
+        { step: '1단계', name: '비정상 로그인 알림 메일 발송', desc: '러시아 등의 해외 국가 로그인 성공 메일로 다급함을 유발합니다.' },
+        { step: '2단계', name: '가짜 비밀번호 변경 폼 연결 및 비밀번호 입력', desc: '공식 카카오 사이트와 유사한 주소와 UI에서 현재 패스워드와 아이디 입력을 유도합니다.' }
+      ]
+    }
   }
 ]
 

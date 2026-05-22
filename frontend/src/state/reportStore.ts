@@ -17,7 +17,7 @@ export const useReportStore = defineStore('report', () => {
     isLoading.value = loading
   }
 
-  const addHistoryItem = (item: { title: string; result: 'SUCCESS' | 'FAILED' }) => {
+  const addHistoryItem = (item: any) => {
     if (report.value) {
       const now = new Date()
       const dateStr = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
@@ -25,7 +25,16 @@ export const useReportStore = defineStore('report', () => {
       report.value.history.unshift({
         date: dateStr,
         title: item.title,
-        result: item.result
+        result: item.result,
+        scenarioId: item.scenarioId,
+        scenarioType: item.scenarioType,
+        duration: item.duration,
+        hangUpStepIndex: item.hangUpStepIndex,
+        hangUpStepName: item.hangUpStepName,
+        vulnerabilityStatus: item.vulnerabilityStatus,
+        vulnerabilityExplanation: item.vulnerabilityExplanation,
+        feedback: item.feedback,
+        techniques: item.techniques
       })
       
       // Update ratios

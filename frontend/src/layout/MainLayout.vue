@@ -3,7 +3,9 @@
 
 <script setup lang="ts">
 import { useProfilingStore } from '../state/profilingStore'
+import { useTrainingStore } from '../state/trainingStore'
 import IncomingCallOverlay from '../component/IncomingCallOverlay.vue'
+import TrainingPage from '../component/TrainingPage.vue'
 
 defineProps<{
   activeTab: 'profiling' | 'response' | 'report'
@@ -14,6 +16,7 @@ const emit = defineEmits<{
 }>()
 
 const profilingStore = useProfilingStore()
+const trainingStore = useTrainingStore()
 </script>
 
 <template>
@@ -53,6 +56,12 @@ const profilingStore = useProfilingStore()
 
       <!-- Global Incoming Call Overlay -->
       <IncomingCallOverlay />
+
+      <!-- Global Training Overlay for SMS/Email/Warning -->
+      <TrainingPage 
+        v-if="trainingStore.simStatus === 'SMS_RECEIVED' || trainingStore.simStatus === 'EMAIL_OPENED' || trainingStore.simStatus === 'WARNING_SCREEN'" 
+        class="absolute inset-0 z-30 bg-white flex flex-col"
+      />
 
       <!-- Bottom Phone App Navigation Bar -->
       <nav class="bg-white border-t border-slate-100 py-2.5 px-4 flex justify-around flex-shrink-0 z-20 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.03)]">

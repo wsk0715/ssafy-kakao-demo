@@ -5,7 +5,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { type Scenario } from '../api/scenarioApi'
 
-export type SimStatus = 'IDLE' | 'RINGING' | 'CONNECTED' | 'SMS_RECEIVED' | 'EMAIL_OPENED' | 'WARNING_SCREEN'
+export type SimStatus = 'IDLE' | 'RINGING' | 'CONNECTED' | 'SMS_RECEIVED' | 'EMAIL_OPENED' | 'WARNING_SCREEN' | 'CALL_REPORT'
 
 export const useTrainingStore = defineStore('training', () => {
   const scenarios = ref<Scenario[]>([])

@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted, computed } from 'vue'
 import { useTrainingStore } from '../state/trainingStore'
 import { trainingService } from '../service/trainingService'
+import { useReportStore } from '../state/reportStore'
+import { trainingApi } from '../api/trainingApi'
 
 const store = useTrainingStore()
+const reportStore = useReportStore()
 
 // Call duration timer
 const duration = ref(0)
@@ -13,10 +16,127 @@ let timerId: any = null
 const isMutedLocal = ref(false)
 const isSpeakerOn = ref(false)
 
+const activeAnalysis = ref<any>(null)
+
 const formatDuration = (sec: number) => {
   const m = Math.floor(sec / 60)
   const s = sec % 60
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+const currentVoiceStepIndex = computed(() => {
+  if (duration.value < 10) return 0
+  if (duration.value < 25) return 1
+  return 2
+})
+
+const currentVoiceStep = computed(() => {
+  const scenario = store.activeScenario
+  if (!scenario || !scenario.steps) return null
+  const idx = currentVoiceStepIndex.value
+  return scenario.steps[idx] || scenario.steps[scenario.steps.length - 1]
+})
+
+const completeCallWithAnalysis = async () => {
+  const scenario = store.activeScenario
+  if (!scenario) return
+
+  if (timerId) {
+    clearInterval(timerId)
+    timerId = null
+  }
+
+  const time = duration.value
+  let stepIndex = currentVoiceStepIndex.value
+  let stepName = ''
+  let status: 'SAFE' | 'WARNING' | 'CRITICAL' = 'SAFE'
+  let explanation = ''
+  let feedback = ''
+  let result: 'SUCCESS' | 'FAILED' = 'SUCCESS'
+
+  if (time < 10) {
+    stepIndex = 0
+    status = 'SAFE'
+    result = 'SUCCESS'
+  } else if (time < 25) {
+    stepIndex = 1
+    status = 'WARNING'
+    result = 'SUCCESS'
+  } else {
+    stepIndex = 2
+    status = 'CRITICAL'
+    result = 'FAILED'
+  }
+
+  // Retrieve details dynamically from the scenario
+  const stage = scenario.stageDetails?.[stepIndex] || {
+    stageName: `${stepIndex + 1}단계`,
+    techniqueName: '피싱 수법',
+    techniqueDesc: '피싱 통화에 지속 대응함.',
+    vulnerabilityExplanation: {
+      SAFE: '통화를 빠르게 종료하여 위협 노출을 피했습니다.',
+      WARNING: '통화를 일정 시간 유지했으나 중간에 끊었습니다.',
+      CRITICAL: '송금 또는 최종 이체 위협 단계까지 들었습니다.'
+    },
+    feedback: {
+      SAFE: '사칭 전화는 즉시 차단하십시오.',
+      WARNING: '앞으로는 의심 징후가 있을 때 더 빨리 종료하십시오.',
+      CRITICAL: '송금 요구나 원격 설치 요구는 100% 사기입니다.'
+    }
+  }
+
+  stepName = stage.stageName
+  explanation = stage.vulnerabilityExplanation[status]
+  feedback = stage.feedback[status]
+
+  const techniques = scenario.stageDetails?.map(d => ({
+    step: `${d.stepIndex + 1}단계`,
+    name: d.techniqueName,
+    desc: d.techniqueDesc
+  })) || [
+    { step: '1단계', name: '공공기관 사칭 및 접촉', desc: '의심을 낮추고 본인 신원을 확인합니다.' },
+    { step: '2단계', name: '사법 절차 및 약정 위반 협박', desc: '심리적 공포 및 당황 상태를 조성합니다.' },
+    { step: '3단계', name: '자산 송금 압박', desc: '임시 계좌로의 자금 이체를 강요합니다.' }
+  ]
+
+  const analysis = {
+    date: new Date().toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }).replace('. ', '-').replace('.', ''),
+    scenarioId: scenario.id,
+    scenarioTitle: scenario.title,
+    scenarioType: scenario.type,
+    duration: time,
+    hangUpStepIndex: stepIndex,
+    hangUpStepName: stepName,
+    vulnerabilityStatus: status,
+    vulnerabilityExplanation: explanation,
+    feedback: feedback,
+    techniques: techniques,
+    result: result
+  }
+
+  await trainingApi.recordLog({
+    scenarioId: scenario.id,
+    actionType: result === 'SUCCESS' ? 'HUNG_UP_SUCCESS' : 'ENTERED_DATA',
+    callDurationSeconds: time,
+    riskyBehaviorDetected: status === 'CRITICAL'
+  })
+
+  reportStore.addHistoryItem({
+    title: scenario.title,
+    result: result,
+    scenarioId: scenario.id,
+    scenarioType: 'VOICE',
+    duration: time,
+    hangUpStepIndex: stepIndex,
+    hangUpStepName: stepName,
+    vulnerabilityStatus: status,
+    vulnerabilityExplanation: explanation,
+    feedback: feedback,
+    techniques: techniques
+  })
+
+  activeAnalysis.value = analysis
+  store.setSimStatus('CALL_REPORT')
 }
 
 watch(() => store.simStatus as any, (newStatus: any) => {
@@ -26,7 +146,7 @@ watch(() => store.simStatus as any, (newStatus: any) => {
     timerId = setInterval(() => {
       duration.value++
     }, 1000)
-  } else if (newStatus !== 'RINGING' && newStatus !== 'CONNECTED') {
+  } else if (newStatus !== 'RINGING' && newStatus !== 'CONNECTED' && newStatus !== 'CALL_REPORT') {
     if (timerId) {
       clearInterval(timerId)
       timerId = null
@@ -34,18 +154,49 @@ watch(() => store.simStatus as any, (newStatus: any) => {
   }
 })
 
+watch(() => duration.value, async (newVal) => {
+  if (newVal >= 45 && store.simStatus === 'CONNECTED') {
+    await completeCallWithAnalysis()
+  }
+})
+
 onUnmounted(() => {
   if (timerId) clearInterval(timerId)
 })
 
-const handleDecline = () => {
-  trainingService.cancelSimulation()
+const handleDecline = async () => {
+  if (store.simStatus === 'RINGING') {
+    const scenario = store.activeScenario
+    if (scenario) {
+      reportStore.addHistoryItem({
+        title: scenario.title,
+        result: 'SUCCESS',
+        scenarioId: scenario.id,
+        scenarioType: 'VOICE',
+        duration: 0,
+        hangUpStepIndex: 0,
+        hangUpStepName: '통화 수신 거절',
+        vulnerabilityStatus: 'SAFE',
+        vulnerabilityExplanation: '전화를 아예 수신하지 않고 바로 거절하여 보이스피싱 공격을 원천적으로 차단했습니다.',
+        feedback: '모르는 번호의 전화를 수신 거절하는 것은 가장 확실하고 즉각적인 피싱 대응법입니다.',
+        techniques: []
+      })
+      await trainingApi.recordLog({
+        scenarioId: scenario.id,
+        actionType: 'HUNG_UP_SUCCESS',
+        callDurationSeconds: 0,
+        riskyBehaviorDetected: false
+      })
+    }
+    trainingService.cancelSimulation()
+  } else if (store.simStatus === 'CONNECTED') {
+    await completeCallWithAnalysis()
+  }
 }
 
 const handleAccept = () => {
   trainingService.acceptCall()
 }
-
 
 const toggleMute = () => {
   isMutedLocal.value = !isMutedLocal.value
@@ -54,12 +205,18 @@ const toggleMute = () => {
 const toggleSpeaker = () => {
   isSpeakerOn.value = !isSpeakerOn.value
 }
+
+const closeReport = () => {
+  activeAnalysis.value = null
+  duration.value = 0
+  trainingService.cancelSimulation()
+}
 </script>
 
 <template>
   <Transition name="slide-up">
     <div 
-      v-if="store.simStatus === 'RINGING' || store.simStatus === 'CONNECTED'" 
+      v-if="store.simStatus === 'RINGING' || store.simStatus === 'CONNECTED' || store.simStatus === 'CALL_REPORT'" 
       class="absolute inset-0 z-50 flex flex-col bg-slate-950 text-white select-none overflow-hidden"
     >
       <!-- A. RINGING STATE -->
@@ -148,15 +305,26 @@ const toggleSpeaker = () => {
       </div>
 
       <!-- B. CONNECTED ACTIVE CALL STATE -->
-      <div v-else-if="store.simStatus === 'CONNECTED' && store.activeScenario" class="flex-1 flex flex-col justify-between py-16 px-8 animate-fade-in">
+      <div v-slot-if="store.simStatus === 'CONNECTED' && store.activeScenario" v-else-if="store.simStatus === 'CONNECTED' && store.activeScenario" class="flex-1 flex flex-col justify-between py-12 px-6 animate-fade-in">
         
         <!-- Active Call Header -->
         <div class="text-center mt-12 space-y-2">
-          <h2 class="text-4xl font-black tracking-tight text-white whitespace-pre-line">
+          <h2 class="text-3xl font-black tracking-tight text-white whitespace-pre-line">
             {{ store.activeScenario.sender }}
           </h2>
           <p class="text-base text-emerald-400 font-extrabold tracking-widest uppercase">
             {{ formatDuration(duration) }}
+          </p>
+        </div>
+
+        <!-- Live Caption Banner (iOS style semi-transparent card) -->
+        <div v-if="currentVoiceStep" class="w-full max-w-xs mx-auto bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl p-4 my-2 text-left space-y-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.37)] animate-fade-in">
+          <div class="flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+            <span class="text-[9px] font-extrabold text-blue-400 uppercase tracking-widest">실시간 통화 자막 피드</span>
+          </div>
+          <p class="text-xs font-semibold text-slate-100 leading-relaxed">
+            "{{ currentVoiceStep.dialogue }}"
           </p>
         </div>
 
@@ -224,6 +392,139 @@ const toggleSpeaker = () => {
 
       </div>
 
+      <!-- C. CALL REPORT STATE -->
+      <div v-else-if="store.simStatus === 'CALL_REPORT' && activeAnalysis" class="flex-1 flex flex-col justify-between py-6 px-6 overflow-hidden animate-fade-in">
+        
+        <!-- Header -->
+        <div class="text-center pb-4 border-b border-white/10">
+          <h3 class="text-sm font-black text-slate-100">보이스피싱 모의 훈련 보고서</h3>
+          <p class="text-[10px] text-slate-400 mt-1">실시간 대처 시간을 분석한 안심 진단표입니다.</p>
+        </div>
+
+        <!-- Scrollable Report Contents -->
+        <div class="flex-1 overflow-y-auto my-4 pr-1 space-y-4 text-xs scroll-container">
+          
+          <!-- Scenario Info Card -->
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+            <div class="flex justify-between items-center text-[9px] text-slate-400 font-bold">
+              <span>훈련 유형: 보이스피싱</span>
+              <span>{{ activeAnalysis.date }}</span>
+            </div>
+            <h4 class="text-xs font-black text-white mt-1">{{ activeAnalysis.scenarioTitle.replace('\n', ' ') }}</h4>
+            <div class="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold mt-1">
+              <svg xmlns="http://www.w3.org/2056/svg" class="w-3.5 h-3.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 12"/>
+              </svg>
+              <span>통화 유지 시간: {{ formatDuration(activeAnalysis.duration) }}초</span>
+            </div>
+          </div>
+
+          <!-- Vulnerability Rating -->
+          <div 
+            :class="[
+              'border rounded-2xl p-4 text-center space-y-1',
+              activeAnalysis.vulnerabilityStatus === 'SAFE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+              activeAnalysis.vulnerabilityStatus === 'WARNING' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+              'bg-rose-500/10 border-rose-500/20 text-rose-400'
+            ]"
+          >
+            <p class="text-[9px] font-black uppercase tracking-wider">취약 진단 등급</p>
+            <p class="text-base font-black mt-1">
+              {{ 
+                activeAnalysis.vulnerabilityStatus === 'SAFE' ? '안전 (즉각 대처)' : 
+                activeAnalysis.vulnerabilityStatus === 'WARNING' ? '주의 (경고 노출)' : 
+                '위험 (송금 피해 고위험)' 
+              }}
+            </p>
+            <p class="text-[10px] text-slate-350 font-semibold mt-1">
+              {{ activeAnalysis.hangUpStepName }} 에서 통화 종료
+            </p>
+          </div>
+
+          <!-- Analysis Explanation -->
+          <div class="space-y-1.5">
+            <h5 class="font-bold text-slate-250">🔍 대처 취약점 분석</h5>
+            <div class="bg-white/5 border border-white/5 rounded-2xl p-3.5 text-slate-300 leading-relaxed font-medium text-[11px]">
+              {{ activeAnalysis.vulnerabilityExplanation }}
+            </div>
+          </div>
+
+          <!-- Prevention Advice / Feedback -->
+          <div class="space-y-1.5">
+            <h5 class="font-bold text-slate-250">💡 안전 대응 가이드</h5>
+            <div class="bg-white/5 border border-white/5 rounded-2xl p-3.5 text-slate-350 leading-relaxed font-medium text-[11px]">
+              <p class="mb-2.5">{{ activeAnalysis.feedback }}</p>
+              <div class="border-t border-white/10 pt-2.5 mt-2.5 space-y-2 text-[10px]">
+                <div class="flex justify-between items-center text-slate-400">
+                  <span>피해 발생 신고 (경찰청)</span>
+                  <span class="text-white font-extrabold">국번없이 112</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-400">
+                  <span>피해 의심 상담 (금융감독원)</span>
+                  <span class="text-white font-extrabold">국번없이 1332</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-400">
+                  <span>스팸/번호변작 제보 (인터넷진흥원)</span>
+                  <span class="text-white font-extrabold">국번없이 118</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Phishing Techniques Timeline -->
+          <div class="space-y-2">
+            <h5 class="font-bold text-slate-250">📊 보이스피싱 시나리오 단계별 구성</h5>
+            <div class="space-y-2">
+              <div 
+                v-for="(tech, tIdx) in activeAnalysis.techniques" 
+                :key="tIdx"
+                :class="[
+                  'p-3.5 rounded-2xl border transition-all text-left flex gap-3',
+                  tIdx === activeAnalysis.hangUpStepIndex 
+                    ? 'bg-blue-600/10 border-blue-500/30 ring-1 ring-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.15)]' 
+                    : 'bg-white/5 border-white/5 opacity-60'
+                ]"
+              >
+                <!-- Badge -->
+                <div 
+                  :class="[
+                    'w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0 mt-0.5',
+                    tIdx === activeAnalysis.hangUpStepIndex ? 'bg-blue-600 text-white animate-pulse' : 'bg-white/10 text-slate-350'
+                  ]"
+                >
+                  {{ Number(tIdx) + 1 }}
+                </div>
+                <div class="space-y-1">
+                  <div class="flex items-center gap-1.5">
+                    <h6 class="font-bold text-slate-200">{{ tech.name }}</h6>
+                    <span v-if="tIdx === activeAnalysis.hangUpStepIndex" class="text-[9px] bg-blue-500 text-white font-bold px-1.5 py-0.2 rounded">
+                      종료 지점
+                    </span>
+                  </div>
+                  <p class="text-[11px] text-slate-400 leading-normal">{{ tech.desc }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Privacy/Non-collection Notice -->
+          <p class="text-[9px] text-slate-500 text-center leading-relaxed mt-4">
+            ※ 본 훈련은 통화 음성 데이터 및 개인정보를 수집하거나 서버로 전송하지 않으며, 시나리오 진행도와 전화 끊기 타이밍만을 활용하여 기재된 안심 분석 리포트입니다.
+          </p>
+
+        </div>
+
+        <!-- Confirm Button -->
+        <button 
+          @click="closeReport"
+          class="w-full bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all text-white font-bold text-sm py-3 px-4 rounded-xl shadow-[0_4px_20px_rgba(37,99,235,0.4)] mt-2"
+        >
+          리포트 닫기 및 훈련 종료
+        </button>
+
+      </div>
+
     </div>
   </Transition>
 </template>
@@ -260,5 +561,23 @@ const toggleSpeaker = () => {
 }
 .animate-soft-pulse {
   animation: softPulse 2s infinite ease-in-out;
+}
+
+/* Custom Scrollbar for Report */
+.scroll-container {
+  scrollbar-width: thin;
+}
+.scroll-container::-webkit-scrollbar {
+  width: 4px;
+}
+.scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+.scroll-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 </style>
