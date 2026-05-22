@@ -217,7 +217,7 @@ const closeReport = () => {
   <Transition name="slide-up">
     <div 
       v-if="store.simStatus === 'RINGING' || store.simStatus === 'CONNECTED' || store.simStatus === 'CALL_REPORT'" 
-      class="absolute inset-0 z-50 flex flex-col bg-slate-950 text-white select-none overflow-hidden"
+      :class="['absolute inset-0 z-50 flex flex-col select-none overflow-hidden transition-colors duration-300', store.simStatus === 'CALL_REPORT' ? 'bg-white text-slate-800' : 'bg-slate-950 text-white']"
     >
       <!-- A. RINGING STATE -->
       <div v-if="store.simStatus === 'RINGING' && store.activeScenario" class="flex-1 flex flex-col justify-between py-12 px-6 animate-fade-in">
@@ -305,7 +305,7 @@ const closeReport = () => {
       </div>
 
       <!-- B. CONNECTED ACTIVE CALL STATE -->
-      <div v-slot-if="store.simStatus === 'CONNECTED' && store.activeScenario" v-else-if="store.simStatus === 'CONNECTED' && store.activeScenario" class="flex-1 flex flex-col justify-between py-12 px-6 animate-fade-in">
+      <div v-else-if="store.simStatus === 'CONNECTED' && store.activeScenario" class="flex-1 flex flex-col justify-between py-12 px-6 animate-fade-in">
         
         <!-- Active Call Header -->
         <div class="text-center mt-12 space-y-2">
@@ -393,26 +393,26 @@ const closeReport = () => {
       </div>
 
       <!-- C. CALL REPORT STATE -->
-      <div v-else-if="store.simStatus === 'CALL_REPORT' && activeAnalysis" class="flex-1 flex flex-col justify-between py-6 px-6 overflow-hidden animate-fade-in">
+      <div v-else-if="store.simStatus === 'CALL_REPORT' && activeAnalysis" class="flex-1 flex flex-col justify-between py-6 px-6 overflow-hidden animate-fade-in text-slate-800">
         
         <!-- Header -->
-        <div class="text-center pb-4 border-b border-white/10">
-          <h3 class="text-sm font-black text-slate-100">보이스피싱 모의 훈련 보고서</h3>
-          <p class="text-[10px] text-slate-400 mt-1">실시간 대처 시간을 분석한 안심 진단표입니다.</p>
+        <div class="text-center pb-4 border-b border-slate-100">
+          <h3 class="text-sm font-bold text-slate-800">보이스피싱 모의 훈련 보고서</h3>
+          <p class="text-xs text-slate-450 mt-1">실시간 대처 시간을 분석한 안심 진단표입니다.</p>
         </div>
 
         <!-- Scrollable Report Contents -->
         <div class="flex-1 overflow-y-auto my-4 pr-1 space-y-4 text-xs scroll-container">
           
           <!-- Scenario Info Card -->
-          <div class="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
-            <div class="flex justify-between items-center text-[9px] text-slate-400 font-bold">
+          <div class="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 space-y-2">
+            <div class="flex justify-between items-center text-xs text-slate-450 font-bold">
               <span>훈련 유형: 보이스피싱</span>
               <span>{{ activeAnalysis.date }}</span>
             </div>
-            <h4 class="text-xs font-black text-white mt-1">{{ activeAnalysis.scenarioTitle.replace('\n', ' ') }}</h4>
-            <div class="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold mt-1">
-              <svg xmlns="http://www.w3.org/2056/svg" class="w-3.5 h-3.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+            <h4 class="text-sm font-bold text-slate-855 mt-1">{{ activeAnalysis.scenarioTitle.replace('\n', ' ') }}</h4>
+            <div class="flex items-center gap-1.5 text-xs text-slate-500 font-bold mt-1">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10"/>
                 <polyline points="12 6 12 12 16 12"/>
               </svg>
@@ -424,49 +424,62 @@ const closeReport = () => {
           <div 
             :class="[
               'border rounded-2xl p-4 text-center space-y-1',
-              activeAnalysis.vulnerabilityStatus === 'SAFE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-              activeAnalysis.vulnerabilityStatus === 'WARNING' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
-              'bg-rose-500/10 border-rose-500/20 text-rose-400'
+              activeAnalysis.vulnerabilityStatus === 'SAFE' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+              activeAnalysis.vulnerabilityStatus === 'WARNING' ? 'bg-amber-50 border-amber-200 text-amber-700' :
+              'bg-rose-50 border-rose-200 text-rose-700'
             ]"
           >
-            <p class="text-[9px] font-black uppercase tracking-wider">취약 진단 등급</p>
-            <p class="text-base font-black mt-1">
+            <p class="text-xs font-black uppercase tracking-wider">취약 진단 등급</p>
+            <p class="text-sm font-extrabold mt-1">
               {{ 
                 activeAnalysis.vulnerabilityStatus === 'SAFE' ? '안전 (즉각 대처)' : 
                 activeAnalysis.vulnerabilityStatus === 'WARNING' ? '주의 (경고 노출)' : 
                 '위험 (송금 피해 고위험)' 
               }}
             </p>
-            <p class="text-[10px] text-slate-350 font-semibold mt-1">
+            <p class="text-xs text-slate-500 font-semibold mt-1">
               {{ activeAnalysis.hangUpStepName }} 에서 통화 종료
             </p>
           </div>
 
           <!-- Analysis Explanation -->
           <div class="space-y-1.5">
-            <h5 class="font-bold text-slate-250">🔍 대처 취약점 분석</h5>
-            <div class="bg-white/5 border border-white/5 rounded-2xl p-3.5 text-slate-300 leading-relaxed font-medium text-[11px]">
+            <h5 class="font-bold text-slate-700 text-xs flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              대처 취약점 분석
+            </h5>
+            <div class="bg-slate-50/50 border border-slate-200/80 rounded-2xl p-3.5 text-slate-650 leading-relaxed font-semibold text-xs">
               {{ activeAnalysis.vulnerabilityExplanation }}
             </div>
           </div>
 
           <!-- Prevention Advice / Feedback -->
           <div class="space-y-1.5">
-            <h5 class="font-bold text-slate-250">💡 안전 대응 가이드</h5>
-            <div class="bg-white/5 border border-white/5 rounded-2xl p-3.5 text-slate-350 leading-relaxed font-medium text-[11px]">
+            <h5 class="font-bold text-slate-700 text-xs flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                <path d="M15 14c.2-.2.4-.4.6-.7C16.8 11.7 17 10 15.8 8.3 14.5 6.7 12.2 6 10.5 6.8c-1.7.8-2.5 2.6-2.5 4.5 0 .9.2 1.8.8 2.5.2.3.4.5.6.7.3.3.5.7.5 1.1v1.5c0 .3.2.5.5.5h4c.3 0 .5-.2.5-.5v-1.5c0-.4.2-.8.5-1.1z"/>
+                <line x1="9" y1="18" x2="15" y2="18"/>
+                <line x1="10" y1="21" x2="14" y2="21"/>
+              </svg>
+              안전 대응 가이드
+            </h5>
+            <div class="bg-slate-50/50 border border-slate-200/80 rounded-2xl p-3.5 text-slate-650 leading-relaxed font-semibold text-xs">
               <p class="mb-2.5">{{ activeAnalysis.feedback }}</p>
-              <div class="border-t border-white/10 pt-2.5 mt-2.5 space-y-2 text-[10px]">
-                <div class="flex justify-between items-center text-slate-400">
+              <div class="border-t border-slate-200 pt-2.5 mt-2.5 space-y-2 text-xs">
+                <div class="flex justify-between items-center text-slate-500">
                   <span>피해 발생 신고 (경찰청)</span>
-                  <span class="text-white font-extrabold">국번없이 112</span>
+                  <span class="text-slate-800 font-bold">국번없이 112</span>
                 </div>
-                <div class="flex justify-between items-center text-slate-400">
+                <div class="flex justify-between items-center text-slate-500">
                   <span>피해 의심 상담 (금융감독원)</span>
-                  <span class="text-white font-extrabold">국번없이 1332</span>
+                  <span class="text-slate-800 font-bold">국번없이 1332</span>
                 </div>
-                <div class="flex justify-between items-center text-slate-400">
+                <div class="flex justify-between items-center text-slate-500">
                   <span>스팸/번호변작 제보 (인터넷진흥원)</span>
-                  <span class="text-white font-extrabold">국번없이 118</span>
+                  <span class="text-slate-800 font-bold">국번없이 118</span>
                 </div>
               </div>
             </div>
@@ -474,7 +487,14 @@ const closeReport = () => {
 
           <!-- Phishing Techniques Timeline -->
           <div class="space-y-2">
-            <h5 class="font-bold text-slate-250">📊 보이스피싱 시나리오 단계별 구성</h5>
+            <h5 class="font-bold text-slate-700 text-xs flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+              </svg>
+              보이스피싱 시나리오 단계별 구성
+            </h5>
             <div class="space-y-2">
               <div 
                 v-for="(tech, tIdx) in activeAnalysis.techniques" 
@@ -482,34 +502,34 @@ const closeReport = () => {
                 :class="[
                   'p-3.5 rounded-2xl border transition-all text-left flex gap-3',
                   tIdx === activeAnalysis.hangUpStepIndex 
-                    ? 'bg-blue-600/10 border-blue-500/30 ring-1 ring-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.15)]' 
-                    : 'bg-white/5 border-white/5 opacity-60'
+                    ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-100 text-slate-800' 
+                    : 'bg-slate-50/30 border-slate-100 opacity-60 text-slate-500'
                 ]"
               >
                 <!-- Badge -->
                 <div 
                   :class="[
-                    'w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0 mt-0.5',
-                    tIdx === activeAnalysis.hangUpStepIndex ? 'bg-blue-600 text-white animate-pulse' : 'bg-white/10 text-slate-350'
+                    'w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 mt-0.5',
+                    tIdx === activeAnalysis.hangUpStepIndex ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'
                   ]"
                 >
                   {{ Number(tIdx) + 1 }}
                 </div>
                 <div class="space-y-1">
                   <div class="flex items-center gap-1.5">
-                    <h6 class="font-bold text-slate-200">{{ tech.name }}</h6>
+                    <h6 class="font-bold text-xs" :class="tIdx === activeAnalysis.hangUpStepIndex ? 'text-slate-800' : 'text-slate-655'">{{ tech.name }}</h6>
                     <span v-if="tIdx === activeAnalysis.hangUpStepIndex" class="text-[9px] bg-blue-500 text-white font-bold px-1.5 py-0.2 rounded">
                       종료 지점
                     </span>
                   </div>
-                  <p class="text-[11px] text-slate-400 leading-normal">{{ tech.desc }}</p>
+                  <p class="text-xs leading-normal" :class="tIdx === activeAnalysis.hangUpStepIndex ? 'text-slate-600' : 'text-slate-400'">{{ tech.desc }}</p>
                 </div>
               </div>
             </div>
           </div>
 
           <!-- Privacy/Non-collection Notice -->
-          <p class="text-[9px] text-slate-500 text-center leading-relaxed mt-4">
+          <p class="text-[10px] text-slate-400 text-center leading-relaxed mt-4">
             ※ 본 훈련은 통화 음성 데이터 및 개인정보를 수집하거나 서버로 전송하지 않으며, 시나리오 진행도와 전화 끊기 타이밍만을 활용하여 기재된 안심 분석 리포트입니다.
           </p>
 
@@ -518,7 +538,7 @@ const closeReport = () => {
         <!-- Confirm Button -->
         <button 
           @click="closeReport"
-          class="w-full bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all text-white font-bold text-sm py-3 px-4 rounded-xl shadow-[0_4px_20px_rgba(37,99,235,0.4)] mt-2"
+          class="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.99] transition-all text-white font-bold text-xs py-3.5 px-4 rounded-xl shadow-[0_4px_20px_rgba(37,99,235,0.15)] mt-2"
         >
           리포트 닫기 및 훈련 종료
         </button>

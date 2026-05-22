@@ -69,36 +69,45 @@ const trainingStore = useTrainingStore()
         <button 
           @click="emit('tabChange', 'profiling')"
           :class="[
-            'flex flex-col items-center gap-1 transition-all active:scale-95 duration-200',
-            activeTab === 'profiling' ? 'text-blue-600 font-bold scale-105' : 'text-slate-400 hover:text-slate-650'
+            'flex flex-col items-center gap-1 transition-all duration-200 active:scale-[0.98]',
+            activeTab === 'profiling' ? 'text-blue-600 font-bold' : 'text-slate-400 hover:text-slate-600'
           ]"
         >
-          <span class="text-lg">📋</span>
-          <span class="text-[10px]">자가진단</span>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+          </svg>
+          <span class="text-xs">자가진단</span>
         </button>
 
         <!-- 2. 안전대응 (Response) -->
         <button 
           @click="emit('tabChange', 'response')"
           :class="[
-            'flex flex-col items-center gap-1 transition-all active:scale-95 duration-200',
-            activeTab === 'response' ? 'text-blue-600 font-bold scale-105' : 'text-slate-400 hover:text-slate-650'
+            'flex flex-col items-center gap-1 transition-all duration-200 active:scale-[0.98]',
+            activeTab === 'response' ? 'text-blue-600 font-bold' : 'text-slate-400 hover:text-slate-600'
           ]"
         >
-          <span class="text-lg">🛡️</span>
-          <span class="text-[10px]">안전대응</span>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          <span class="text-xs">안전대응</span>
         </button>
 
         <!-- 3. 리포트 (Report) -->
         <button 
           @click="emit('tabChange', 'report')"
           :class="[
-            'flex flex-col items-center gap-1 transition-all active:scale-95 duration-200',
-            activeTab === 'report' ? 'text-blue-600 font-bold scale-105' : 'text-slate-400 hover:text-slate-650'
+            'flex flex-col items-center gap-1 transition-all duration-200 active:scale-[0.98]',
+            activeTab === 'report' ? 'text-blue-600 font-bold' : 'text-slate-400 hover:text-slate-600'
           ]"
         >
-          <span class="text-lg">📊</span>
-          <span class="text-[10px]">리포트</span>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+          <span class="text-xs">리포트</span>
         </button>
       </nav>
 

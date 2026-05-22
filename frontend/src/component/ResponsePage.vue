@@ -27,7 +27,7 @@ const simulateDial = (phoneNumber: string, orgName: string) => {
   <div class="p-6 space-y-6">
     <div class="text-center py-2">
       <h2 class="text-xl font-bold text-slate-800">상황별 대응 안내</h2>
-      <p class="text-xs text-slate-500 mt-1">훈련 이력에 맞춤화된 긴급 피싱 대응 연락처와 절차를 제시합니다.</p>
+      <p class="text-sm text-slate-500 mt-1">훈련 이력에 맞춤화된 긴급 피싱 대응 연락처와 절차를 제시합니다.</p>
     </div>
 
     <!-- Failed vector analysis info -->
@@ -51,48 +51,63 @@ const simulateDial = (phoneNumber: string, orgName: string) => {
           <div>
             <span 
               :class="[
-                'text-[8px] font-extrabold px-2 py-0.5 rounded-full tracking-wider uppercase border',
+                'text-[10px] font-extrabold px-2 py-0.5 rounded-full tracking-wider uppercase border',
                 c.urgency === 'HIGH' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-amber-50 text-amber-600 border-amber-100'
               ]"
             >
               {{ c.urgency === 'HIGH' ? '긴급' : '보통' }}
             </span>
-            <h3 class="text-xs font-bold text-slate-800 mt-1.5">{{ c.orgName }}</h3>
+            <h3 class="text-sm font-bold text-slate-800 mt-1.5">{{ c.orgName }}</h3>
           </div>
-          <span class="text-xs font-black text-blue-600 tracking-wider">{{ c.phoneNumber }}</span>
+          <span class="text-sm font-bold text-blue-600 tracking-wider">{{ c.phoneNumber }}</span>
         </div>
 
-        <p class="text-2xs text-slate-550 leading-normal">
+        <p class="text-xs text-slate-550 leading-normal">
           {{ c.description }}
         </p>
 
         <button 
           @click="simulateDial(c.phoneNumber, c.orgName)"
-          class="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold text-xs py-2 px-4 rounded-xl transition-all active:scale-98 flex items-center justify-center gap-1.5"
+          class="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold text-sm py-2.5 px-4 rounded-xl transition-all active:scale-[0.99] flex items-center justify-center gap-1.5"
         >
-          📞 연결 상담 요청
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+          </svg>
+          연결 상담 요청
         </button>
       </div>
     </div>
 
     <!-- Quick action links for banks -->
     <div class="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.02)]">
-      <h4 class="text-xs font-bold text-slate-700">주요 금융기관 고객센터</h4>
-      <div class="grid grid-cols-2 gap-2.5 text-2xs">
+      <h4 class="text-sm font-bold text-slate-700">주요 금융기관 고객센터</h4>
+      <div class="grid grid-cols-2 gap-2.5 text-xs">
         <a 
           href="https://www.kbstar.com" 
           target="_blank"
-          class="bg-slate-50/50 border border-slate-200 p-3 rounded-xl text-slate-600 font-bold hover:bg-slate-50 hover:border-slate-350 text-center flex flex-col justify-center items-center gap-1 transition-all"
+          class="bg-slate-50/50 border border-slate-200 p-3 rounded-xl text-slate-600 font-bold hover:bg-slate-50 hover:border-slate-350 text-center flex flex-col justify-center items-center gap-1.5 transition-all active:scale-[0.99]"
         >
-          <span class="text-lg">🏦</span>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 fill-none stroke-slate-500 stroke-2" viewBox="0 0 24 24">
+            <path d="M3 21h18"/>
+            <path d="M19 21v-7"/>
+            <path d="M5 21v-7"/>
+            <path d="M12 21v-7"/>
+            <path d="M2 11l10-8 10 8"/>
+          </svg>
           <span>국민은행 (1588-9999)</span>
         </a>
         <a 
           href="https://www.shinhan.com" 
           target="_blank"
-          class="bg-slate-50/50 border border-slate-200 p-3 rounded-xl text-slate-600 font-bold hover:bg-slate-50 hover:border-slate-350 text-center flex flex-col justify-center items-center gap-1 transition-all"
+          class="bg-slate-50/50 border border-slate-200 p-3 rounded-xl text-slate-600 font-bold hover:bg-slate-50 hover:border-slate-350 text-center flex flex-col justify-center items-center gap-1.5 transition-all active:scale-[0.99]"
         >
-          <span class="text-lg">🏦</span>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 fill-none stroke-slate-500 stroke-2" viewBox="0 0 24 24">
+            <path d="M3 21h18"/>
+            <path d="M19 21v-7"/>
+            <path d="M5 21v-7"/>
+            <path d="M12 21v-7"/>
+            <path d="M2 11l10-8 10 8"/>
+          </svg>
           <span>신한은행 (1599-8000)</span>
         </a>
       </div>
