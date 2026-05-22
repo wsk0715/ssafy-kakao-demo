@@ -5,6 +5,7 @@ import { scenarioApi, type Scenario } from '../api/scenarioApi'
 import { trainingApi } from '../api/trainingApi'
 import { useTrainingStore } from '../state/trainingStore'
 import { useReportStore } from '../state/reportStore'
+import { callConnectionService } from './callConnectionService'
 
 export const trainingService = {
   async loadScenarios(): Promise<void> {
@@ -20,6 +21,14 @@ export const trainingService = {
   startSimulation(scenario: Scenario): void {
     const store = useTrainingStore()
     store.startSimulation(scenario)
+    callConnectionService.reportProgress(store.simStatus, 0)
+  },
+
+  acceptCall(): void {
+    const store = useTrainingStore()
+    store.acceptCall()
+    callConnectionService.stopRingtone()
+    callConnectionService.reportProgress('CONNECTED', 0)
   },
 
   async handleUserChoice(choiceIndex: number): Promise<void> {
@@ -42,6 +51,8 @@ export const trainingService = {
           })
           reportStore.addHistoryItem({ title: scenario.title, result: 'FAILED' })
           store.triggerWarning(scenario.warningExplanation)
+          callConnectionService.stopRingtone()
+          callConnectionService.reportProgress('WARNING_SCREEN', store.currentStepIndex)
         } else {
           // Safe action (suspicious, hang up)
           await trainingApi.recordLog({
@@ -52,6 +63,8 @@ export const trainingService = {
           })
           reportStore.addHistoryItem({ title: scenario.title, result: 'SUCCESS' })
           store.setSimStatus('IDLE')
+          callConnectionService.stopRingtone()
+          callConnectionService.reportProgress('IDLE', store.currentStepIndex)
         }
       } else {
         // Advance script
@@ -65,8 +78,12 @@ export const trainingService = {
           })
           reportStore.addHistoryItem({ title: scenario.title, result: 'SUCCESS' })
           store.setSimStatus('IDLE')
+          callConnectionService.stopRingtone()
+          callConnectionService.reportProgress('IDLE', store.currentStepIndex)
         } else {
-          store.setStepIndex(store.currentStepIndex + 1)
+          const nextStep = store.currentStepIndex + 1
+          store.setStepIndex(nextStep)
+          callConnectionService.reportProgress('CONNECTED', nextStep)
         }
       }
     } else {
@@ -141,6 +158,8 @@ export const trainingService = {
 
   cancelSimulation(): void {
     const store = useTrainingStore()
+    callConnectionService.stopRingtone()
+    callConnectionService.reportProgress('IDLE', store.currentStepIndex)
     store.stopSimulation()
   }
 }

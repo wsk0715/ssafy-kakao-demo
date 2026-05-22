@@ -78,7 +78,7 @@ const cancel = () => {
 
     <!-- B. VOICE CALL SIMULATION -->
     <div 
-      v-else-if="store.simStatus === 'CALLING' && store.activeScenario" 
+      v-else-if="(store.simStatus as any) === 'CALLING' && store.activeScenario" 
       class="flex-1 bg-slate-50/20 p-6 flex flex-col justify-between items-center text-center animate-fade-in"
     >
       <!-- Caller Info -->

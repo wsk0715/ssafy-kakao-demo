@@ -20,8 +20,8 @@ const mockScenarios: Scenario[] = [
   {
     id: 'voice_prosecutor',
     type: 'VOICE',
-    title: '서울중앙지검 김민수 검사 사칭',
-    sender: '02-1301-XXXX (서울중앙지검)',
+    title: '서울중앙지검\n김민수 검사 사칭',
+    sender: '02-1301-XXXX\n(서울중앙지검)',
     content: '귀하의 명의로 대포통장이 개설되어 범죄 자금 세탁에 이용되었습니다. 자산 보호를 위해 조치를 취해야 합니다.',
     attackerAction: '금감원 안전 계좌로 이체 유도',
     steps: [

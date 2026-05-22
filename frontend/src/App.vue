@@ -1,22 +1,31 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import MainLayout from './layout/MainLayout.vue'
 import ProfilingPage from './component/ProfilingPage.vue'
-import TrainingPage from './component/TrainingPage.vue'
 import ResponsePage from './component/ResponsePage.vue'
 import ReportPage from './component/ReportPage.vue'
+import { callConnectionService } from './service/callConnectionService'
 
-const activeTab = ref<'profiling' | 'training' | 'response' | 'report'>('profiling')
+const activeTab = ref<'profiling' | 'response' | 'report'>('profiling')
 
-const handleTabChange = (tab: 'profiling' | 'training' | 'response' | 'report') => {
+const handleTabChange = (tab: 'profiling' | 'response' | 'report') => {
   activeTab.value = tab
 }
+
+onMounted(() => {
+  // Connect to SSE simulation trigger channel on app load
+  callConnectionService.connect('demo_user')
+})
+
+onUnmounted(() => {
+  // Clean up connection
+  callConnectionService.disconnect()
+})
 </script>
 
 <template>
   <MainLayout :active-tab="activeTab" @tab-change="handleTabChange">
     <ProfilingPage v-if="activeTab === 'profiling'" />
-    <TrainingPage v-else-if="activeTab === 'training'" />
     <ResponsePage v-else-if="activeTab === 'response'" />
     <ReportPage v-else-if="activeTab === 'report'" />
   </MainLayout>

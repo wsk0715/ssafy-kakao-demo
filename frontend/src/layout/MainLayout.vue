@@ -3,13 +3,14 @@
 
 <script setup lang="ts">
 import { useProfilingStore } from '../state/profilingStore'
+import IncomingCallOverlay from '../component/IncomingCallOverlay.vue'
 
 defineProps<{
-  activeTab: 'profiling' | 'training' | 'response' | 'report'
+  activeTab: 'profiling' | 'response' | 'report'
 }>()
 
 const emit = defineEmits<{
-  (e: 'tabChange', tab: 'profiling' | 'training' | 'response' | 'report'): void
+  (e: 'tabChange', tab: 'profiling' | 'response' | 'report'): void
 }>()
 
 const profilingStore = useProfilingStore()
@@ -50,6 +51,9 @@ const profilingStore = useProfilingStore()
         <slot />
       </main>
 
+      <!-- Global Incoming Call Overlay -->
+      <IncomingCallOverlay />
+
       <!-- Bottom Phone App Navigation Bar -->
       <nav class="bg-white border-t border-slate-100 py-2.5 px-4 flex justify-around flex-shrink-0 z-20 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.03)]">
         <!-- 1. 자가진단 (Profiling) -->
@@ -64,19 +68,7 @@ const profilingStore = useProfilingStore()
           <span class="text-[10px]">자가진단</span>
         </button>
 
-        <!-- 2. 모의훈련 (Training) -->
-        <button 
-          @click="emit('tabChange', 'training')"
-          :class="[
-            'flex flex-col items-center gap-1 transition-all active:scale-95 duration-200',
-            activeTab === 'training' ? 'text-blue-600 font-bold scale-105' : 'text-slate-400 hover:text-slate-650'
-          ]"
-        >
-          <span class="text-lg">🎯</span>
-          <span class="text-[10px]">모의훈련</span>
-        </button>
-
-        <!-- 3. 안전대응 (Response) -->
+        <!-- 2. 안전대응 (Response) -->
         <button 
           @click="emit('tabChange', 'response')"
           :class="[
@@ -88,7 +80,7 @@ const profilingStore = useProfilingStore()
           <span class="text-[10px]">안전대응</span>
         </button>
 
-        <!-- 4. 리포트 (Report) -->
+        <!-- 3. 리포트 (Report) -->
         <button 
           @click="emit('tabChange', 'report')"
           :class="[

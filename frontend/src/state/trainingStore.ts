@@ -5,7 +5,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { type Scenario } from '../api/scenarioApi'
 
-export type SimStatus = 'IDLE' | 'CALLING' | 'SMS_RECEIVED' | 'EMAIL_OPENED' | 'WARNING_SCREEN'
+export type SimStatus = 'IDLE' | 'RINGING' | 'CONNECTED' | 'SMS_RECEIVED' | 'EMAIL_OPENED' | 'WARNING_SCREEN'
 
 export const useTrainingStore = defineStore('training', () => {
   const scenarios = ref<Scenario[]>([])
@@ -25,12 +25,16 @@ export const useTrainingStore = defineStore('training', () => {
     warningMessage.value = ''
     
     if (scenario.type === 'VOICE') {
-      simStatus.value = 'CALLING'
+      simStatus.value = 'RINGING'
     } else if (scenario.type === 'SMS') {
       simStatus.value = 'SMS_RECEIVED'
     } else {
       simStatus.value = 'EMAIL_OPENED'
     }
+  }
+
+  const acceptCall = () => {
+    simStatus.value = 'CONNECTED'
   }
 
   const setStepIndex = (index: number) => {
@@ -61,6 +65,7 @@ export const useTrainingStore = defineStore('training', () => {
     warningMessage,
     setScenarios,
     startSimulation,
+    acceptCall,
     setStepIndex,
     setSimStatus,
     triggerWarning,
