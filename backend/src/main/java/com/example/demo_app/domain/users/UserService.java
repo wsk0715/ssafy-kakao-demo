@@ -1,10 +1,10 @@
-package com.example.demo_app.domain.users.service;
+package com.example.demo_app.domain.users;
 
 import com.example.demo_app.api.dto.ProfilingOption;
 import com.example.demo_app.api.dto.ProfilingQuestion;
 import com.example.demo_app.api.dto.ProfilingResultResponse;
 import com.example.demo_app.api.dto.UserProfilingRequest;
-import com.example.demo_app.domain.users.mapper.UserMapper;
+import com.example.demo_app.domain.users.UserMapper;
 import com.example.demo_app.domain.users.model.User;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;

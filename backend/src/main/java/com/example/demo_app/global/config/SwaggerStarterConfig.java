@@ -1,4 +1,4 @@
-package com.example.demo_app.config;
+package com.example.demo_app.global.config;
 
 import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.boot.autoconfigure.AutoConfiguration;

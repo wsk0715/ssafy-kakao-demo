@@ -1,4 +1,4 @@
-package com.example.demo_app.domain.scenarios.mapper;
+package com.example.demo_app.domain.scenarios;
 
 import com.example.demo_app.domain.scenarios.model.Scenario;
 import org.apache.ibatis.annotations.Mapper;

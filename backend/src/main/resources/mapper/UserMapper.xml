@@ -2,7 +2,7 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.example.demo_app.domain.users.mapper.UserMapper">
+<mapper namespace="com.example.demo_app.domain.users.UserMapper">
 
     <insert id="insertUser">
         INSERT INTO users (user_id, risk_level, risk_type, description, vulnerabilities, created_at)

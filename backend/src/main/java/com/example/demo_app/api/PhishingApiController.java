@@ -1,9 +1,9 @@
 package com.example.demo_app.api;
 
 import com.example.demo_app.api.dto.*;
-import com.example.demo_app.domain.logs.service.TrainingLogService;
-import com.example.demo_app.domain.scenarios.service.ScenarioService;
-import com.example.demo_app.domain.users.service.UserService;
+import com.example.demo_app.domain.logs.TrainingLogService;
+import com.example.demo_app.domain.scenarios.ScenarioService;
+import com.example.demo_app.domain.users.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;

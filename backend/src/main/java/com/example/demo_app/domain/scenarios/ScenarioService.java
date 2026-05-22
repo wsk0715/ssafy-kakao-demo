@@ -1,6 +1,6 @@
-package com.example.demo_app.domain.scenarios.service;
+package com.example.demo_app.domain.scenarios;
 
-import com.example.demo_app.domain.scenarios.mapper.ScenarioMapper;
+import com.example.demo_app.domain.scenarios.ScenarioMapper;
 import com.example.demo_app.domain.scenarios.model.Scenario;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;

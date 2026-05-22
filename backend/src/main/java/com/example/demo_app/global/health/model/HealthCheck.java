@@ -1,4 +1,4 @@
-package com.example.demo_app.health.model;
+package com.example.demo_app.global.health.model;
 
 import lombok.Data;
 
