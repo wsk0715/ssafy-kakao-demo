@@ -16,8 +16,13 @@ if (Test-Path $EXTRACT_PATH) {
 New-Item -ItemType Directory -Path $EXTRACT_PATH | Out-Null
 java -Djarmode=tools -jar "build/libs/app.jar" extract --layers --launcher --destination $EXTRACT_PATH
 
-Write-Host "--- [3/4] Docker Compose Build & Up.. ---" -ForegroundColor Cyan
-docker-compose up -d app --build
+Write-Host "--- [3/4] Ensuring Docker Network & Compose Build.. ---" -ForegroundColor Cyan
+docker network inspect demo-network > $null 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Creating demo-network..." -ForegroundColor Yellow
+    docker network create demo-network
+}
+docker-compose up -d --build
 
 Write-Host "--- [4/4] Application is Starting.. ---" -ForegroundColor Green
 docker logs -f "$APP_NAME"

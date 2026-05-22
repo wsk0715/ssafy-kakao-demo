@@ -17,6 +17,8 @@ services:
       timeout: 3s
       retries: 5
       start_period: 6s
+    networks:
+      - demo-network
 
   app:
     build:
@@ -35,6 +37,12 @@ services:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+    networks:
+      - demo-network
 
 volumes:
   mysql_data:
+
+networks:
+  demo-network:
+    external: true

@@ -1,0 +1,23 @@
+services:
+  tts:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: demo-tts
+    container_name: demo-tts
+    restart: always
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      demo-network:
+        aliases:
+          - tts
+
+networks:
+  demo-network:
+    external: true
