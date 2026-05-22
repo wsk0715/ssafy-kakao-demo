@@ -1,12 +1,8 @@
 package com.example.demo_app.calls;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import com.example.demo_app.api.dto.ProgressReport;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -14,16 +10,14 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
-@RequestMapping("/api/v1/calls")
 @Slf4j
-@CrossOrigin(origins = "*", allowedHeaders = "*")
-public class CallController {
+public class CallController implements CallApi {
 
     // Store active SSE emitters per user
     private static final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
 
-    @GetMapping(value = "/connect", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter connect(@RequestParam(value = "userId", defaultValue = "demo_user") String userId) {
+    @Override
+    public SseEmitter connect(String userId) {
         log.info("Client connected to SSE: {}", userId);
         
         // Create emitter with 30-minute timeout
@@ -58,11 +52,8 @@ public class CallController {
         return emitter;
     }
 
-    @PostMapping("/trigger")
-    public String triggerCall(
-            @RequestParam(value = "userId", defaultValue = "demo_user") String userId,
-            @RequestParam(value = "scenarioId", defaultValue = "voice_prosecutor") String scenarioId) {
-        
+    @Override
+    public String triggerCall(String userId, String scenarioId) {
         log.info("Triggering simulated call for user: {}, scenario: {}", userId, scenarioId);
         SseEmitter emitter = emitters.get(userId);
         
@@ -87,22 +78,10 @@ public class CallController {
         }
     }
 
-    @PostMapping("/progress")
-    public String reportProgress(
-            @RequestParam(value = "userId", defaultValue = "demo_user") String userId,
-            @RequestBody ProgressReport report) {
-        
+    @Override
+    public String reportProgress(String userId, ProgressReport report) {
         log.info("[PROGRESS REPORT] User: {}, Status: {}, CurrentStep: {}", 
                 userId, report.getStatus(), report.getCurrentStep());
         return "Logged";
-    }
-
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class ProgressReport {
-        private String status;
-        private int currentStep;
     }
 }
