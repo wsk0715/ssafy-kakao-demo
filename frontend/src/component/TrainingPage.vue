@@ -44,6 +44,7 @@ const cancel = () => {
 
 const desktopTextInput = ref('')
 const desktopDynamicDialogue = ref('')
+const isWaitingForResponse = ref(false)
 let desktopResponseEventSource: EventSource | null = null
 
 const stopDesktopActiveSSE = () => {
@@ -56,6 +57,7 @@ const stopDesktopActiveSSE = () => {
     }
     desktopResponseEventSource = null
   }
+  isWaitingForResponse.value = false
 }
 
 onUnmounted(() => {
@@ -64,24 +66,27 @@ onUnmounted(() => {
 
 const submitDesktopTextInput = async () => {
   const text = desktopTextInput.value.trim()
-  if (!text) return
+  if (!text || isWaitingForResponse.value) return
+  
   desktopTextInput.value = ''
+  isWaitingForResponse.value = true
   
   const scenario = store.activeScenario
-  if (!scenario) return
+  if (!scenario) {
+    isWaitingForResponse.value = false
+    return
+  }
 
   const isSuspicious = /사기|사칭|의심|끊어|피싱|경찰|검찰청|금감원|아닌가|신고|아니요|못 믿/i.test(text)
   
   if (isSuspicious) {
     desktopDynamicDialogue.value = ''
     stopDesktopActiveSSE()
-    await trainingService.handleUserChoice(1) // Hang up / End
+    await trainingService.handleUserChoice(1) // SUCCESS (Safe path)
     return
   }
 
-  // Progress the step index to simulate advancement
-  const nextStep = Math.min(store.currentStepIndex + 1, scenario.steps.length - 1)
-  store.setStepIndex(nextStep)
+  // DELETED: Automatic step index increment
   
   stopDesktopActiveSSE()
   desktopDynamicDialogue.value = ''
@@ -96,6 +101,9 @@ const submitDesktopTextInput = async () => {
     try {
       const data = JSON.parse(event.data)
       const chunkText = data.text
+      // Filter out internal state tags from UI display
+      if (chunkText.includes('[STATE:')) return;
+
       console.log('[SSE LLM Desktop Chunk]:', chunkText)
       if (desktopDynamicDialogue.value) {
         desktopDynamicDialogue.value += ' ' + chunkText
@@ -107,11 +115,26 @@ const submitDesktopTextInput = async () => {
     }
   })
 
-  es.addEventListener('complete', (event: any) => {
-    console.log('[SSE LLM Desktop Complete] Finished stream:', event.data)
+  es.addEventListener('complete', async (event: any) => {
+    const data = event.data // Format: "STATUS|FULL_TEXT"
+    console.log('[SSE LLM Desktop Complete]:', data)
+    
+    const [status, fullText] = data.split('|')
     es.close()
+    
     if (desktopResponseEventSource === es) {
       desktopResponseEventSource = null
+      isWaitingForResponse.value = false
+    }
+
+    if (status === 'FAILED') {
+      await trainingService.handleUserChoice(0) // Trigger Warning Screen
+    } else if (status === 'SUCCESS') {
+      await trainingService.handleUserChoice(1) // Show Success (IDLE)
+    } else {
+      // PROCEEDING: Just advance visual step for UI guidance if needed
+      const nextStep = Math.min(store.currentStepIndex + 1, scenario.steps.length - 1)
+      store.setStepIndex(nextStep)
     }
   })
 
@@ -120,6 +143,7 @@ const submitDesktopTextInput = async () => {
     es.close()
     if (desktopResponseEventSource === es) {
       desktopResponseEventSource = null
+      isWaitingForResponse.value = false
     }
     if (desktopDynamicDialogue.value === '') {
       desktopDynamicDialogue.value = '연결 상태가 좋지 않아 답변이 지연되고 있습니다.'
@@ -211,19 +235,21 @@ const submitDesktopTextInput = async () => {
           <p class="text-xs font-bold text-slate-400 uppercase tracking-widest text-left">
             💬 대답 입력 (텍스트로 대화 진행)
           </p>
-          <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-1.5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] focus-within:border-indigo-500 transition-colors">
+          <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-1.5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] focus-within:border-indigo-500 transition-colors" :class="{'opacity-60 bg-slate-50': isWaitingForResponse}">
             <input 
               v-model="desktopTextInput"
               @keyup.enter="submitDesktopTextInput"
               type="text" 
-              placeholder="대답을 입력하세요..." 
+              :placeholder="isWaitingForResponse ? '답변을 기다리는 중...' : '대답을 입력하세요...'" 
+              :disabled="isWaitingForResponse"
               class="flex-1 bg-transparent text-xs text-slate-800 placeholder-slate-400 focus:outline-none px-2.5 py-1.5"
             />
             <button 
               @click="submitDesktopTextInput"
-              class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-[11px] font-bold py-1.5 px-4 rounded-lg transition-all"
+              :disabled="isWaitingForResponse"
+              class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-[11px] font-bold py-1.5 px-4 rounded-lg transition-all disabled:bg-slate-300 disabled:scale-100"
             >
-              전송
+              {{ isWaitingForResponse ? '...' : '전송' }}
             </button>
           </div>
         </div>

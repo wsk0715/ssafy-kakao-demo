@@ -42,7 +42,10 @@ const clearSilenceTimer = () => {
 
 const startSilenceTimer = () => {
   clearSilenceTimer()
-  if (store.simStatus !== 'CONNECTED') return
+  if (store.simStatus !== 'CONNECTED' || isAttackerSpeaking.value || !isSseCompleted) {
+    console.log('[Silence Timer] Guard active: Skipping timer start as attacker is speaking or stream is active.')
+    return
+  }
   console.log('[Silence Timer] Starting 3-second countdown for user response...')
   silenceTimer = setTimeout(() => {
     handleSilence()
@@ -55,14 +58,9 @@ const handleSilence = async () => {
   if (silenceNudgeCount === 1) {
     console.log('[Silence Handler] 1st silence timeout (3s). Sending normal nudge request to LLM.')
     handleUserSpeechInput('(대답 없음)')
-  } else if (silenceNudgeCount === 2) {
-    console.log('[Silence Handler] 2nd silence timeout (3s). Sending highly aggressive and coercive nudge request to LLM.')
-    handleUserSpeechInput('(대답 없음 - 매우 강압적이고 다급하며 위협적인 어조로 상대방을 강하게 압박하고 독촉)')
   } else {
-    console.log('[Silence Handler] 3rd silence timeout (3s). Attacker hanging up the call.')
-    userSpokenText.value = '지속된 침묵으로 피싱범이 의심하며 전화를 끊었습니다.'
-    clearSilenceTimer()
-    await recordSuccessHangUp(store.currentStepIndex)
+    console.log(`[Silence Handler] ${silenceNudgeCount}th silence timeout. Sending coercive nudge request to LLM.`)
+    handleUserSpeechInput('(대답 없음 - 매우 강압적이고 다급하며 위협적인 어조로 상대방을 강하게 압박하고 독촉)')
   }
 }
 
@@ -110,8 +108,23 @@ let recognition: any = null
 const isListening = ref(false)
 const userSpokenText = ref('')
 const isAttackerSpeaking = ref(false)
+const actuallyHeardText = ref('') // AI의 대사 중 실제 스피커로 출력된 부분 추적
 const textInput = ref('')
 const dynamicDialogue = ref('')
+
+const reportInterruption = async (lastHeard: string) => {
+  const scenario = store.activeScenario
+  if (!scenario) return
+  
+  console.log('[Interruption] Reporting to backend. Last heard:', lastHeard)
+  try {
+    await fetch(`/api/v1/calls/interrupt?userId=demo_user&scenarioId=${encodeURIComponent(scenario.id)}&lastHeardText=${encodeURIComponent(lastHeard)}`, {
+      method: 'POST'
+    })
+  } catch (e) {
+    console.error('[Interruption] Failed to report interruption:', e)
+  }
+}
 
 const submitTextInput = () => {
   const text = textInput.value.trim()
@@ -268,37 +281,30 @@ const handleUserSpeechInput = async (spokenText: string) => {
   const step = currentVoiceStep.value
   if (!step) return
 
-  if (spokenText !== '(대답 없음)') {
+  if (spokenText !== '(대답 없음)' && !spokenText.includes('(대답 없음')) {
     silenceNudgeCount = 0
   }
 
-  // Detect negative/suspicious keywords (SAFE actions)
-  const isSuspicious = /사기|사칭|의심|끊어|피싱|경찰|검찰청|금감원|아닌가|신고|아니요|못 믿/i.test(spokenText)
-  // Detect positive/compliance keywords (CRITICAL actions)
-  const isAccepting = /네|맞아|맞습|예|할게|계좌|알겠|이체|송금|알려주/i.test(spokenText)
-
-  if (isSuspicious) {
-    userSpokenText.value = `[포착: ${spokenText}] => 위험을 감지하여 전화를 끊습니다.`
-    await recordSuccessHangUp(store.currentStepIndex)
-    return
-  }
-
-  if (isAccepting && store.currentStepIndex === scenario.steps.length - 1) {
-    userSpokenText.value = `[포착: ${spokenText}] => 금융사기 피해 의심 동작 수행.`
-    await recordFailedCall()
-    return
-  }
-
-  userSpokenText.value = `[포착: ${spokenText}] => 대화 진행 중...`
+  userSpokenText.value = `[포착: ${spokenText.replace(/\(.*\)/,'').trim() || '침묵'}] => 대화 진행 중...`
   const nextStep = Math.min(store.currentStepIndex + 1, scenario.steps.length - 1)
   store.setStepIndex(nextStep)
   callConnectionService.reportProgress('CONNECTED', nextStep)
 
+  // PHASE 1: 인터럽트 발생 시 서버에 보고하여 컨텍스트 롤백 수행
+  if (isAttackerSpeaking.value && isAudioPlaying) {
+    const lastHeard = actuallyHeardText.value.trim()
+    if (lastHeard) {
+      await reportInterruption(lastHeard)
+    }
+  }
+
   // Reset audio queue state and stop any existing audio
   stopActiveAudio()
+  clearSilenceTimer()
   
   isAttackerSpeaking.value = true
   dynamicDialogue.value = ''
+  actuallyHeardText.value = '' // 초기화
   isSseCompleted = false
   isAudioPlaying = false
   audioQueue = []
@@ -306,7 +312,7 @@ const handleUserSpeechInput = async (spokenText: string) => {
   const playNextAudio = () => {
     if (audioQueue.length === 0) {
       if (isSseCompleted) {
-        console.log('[Audio Queue] Finished playing all streamed chunks.')
+        console.log('[Audio Queue] Finished playing all streamed chunks. Attacker speech truly ended.')
         isAttackerSpeaking.value = false
         activeAudio.value = null
         startSTT()
@@ -319,24 +325,26 @@ const handleUserSpeechInput = async (spokenText: string) => {
     const item = audioQueue.shift()!
     activeAudio.value = item.audio
 
-    console.log(`[TTS Streaming] Playing preloaded chunk: "${item.text}"`)
+    console.log(`[TTS Streaming] Playing chunk: "${item.text}"`)
 
     item.audio.play().catch(e => {
       console.warn('[Audio Queue Playback Blocked] Using fallback reading timer.', e)
       const speechDuration = Math.min(Math.max(item.text.length * 85, 1500), 4500)
       setTimeout(() => {
+        actuallyHeardText.value += (actuallyHeardText.value ? ' ' : '') + item.text
         isAudioPlaying = false
         playNextAudio()
       }, speechDuration)
     })
 
     item.audio.onended = () => {
+      actuallyHeardText.value += (actuallyHeardText.value ? ' ' : '') + item.text
       isAudioPlaying = false
       playNextAudio()
     }
 
     item.audio.onerror = (err) => {
-      console.error('[TTS Audio Queue Error] Failed to play preloaded chunk. Skipping.', err)
+      console.error('[TTS Audio Queue Error] Failed to play chunk. Skipping.', err)
       isAudioPlaying = false
       playNextAudio()
     }
@@ -403,14 +411,7 @@ const handleUserSpeechInput = async (spokenText: string) => {
       responseEventSource = null
     }
     if (dynamicDialogue.value === '') {
-      dynamicDialogue.value = '연결 상태가 좋지 않아 답변이 지연되고 있습니다.'
-      const fallbackUrl = `/api/v1/calls/stream?text=${encodeURIComponent(dynamicDialogue.value)}`
-      const fallbackAudio = new Audio(fallbackUrl)
-      fallbackAudio.preload = 'auto'
-      audioQueue.push({
-        text: dynamicDialogue.value,
-        audio: fallbackAudio
-      })
+      // 로봇 대사 삭제. 침묵 타이머가 작동하여 AI가 재촉하도록 유도.
     }
     if (!isAudioPlaying) {
       playNextAudio()

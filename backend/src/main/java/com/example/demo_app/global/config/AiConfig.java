@@ -30,6 +30,7 @@ public class AiConfig {
                 .apiKey(apiKey)
                 .baseUrl(baseUrl)
                 .modelName(modelName)
+                .temperature(0.8) // 창의성 및 다양성 확보
                 .timeout(Duration.ofSeconds(60))
                 .logRequests(true)
                 .logResponses(true)
@@ -42,6 +43,7 @@ public class AiConfig {
                 .apiKey(apiKey)
                 .baseUrl(baseUrl)
                 .modelName(modelName)
+                .temperature(0.8) // 창의성 및 다양성 확보
                 .timeout(Duration.ofSeconds(60))
                 .logRequests(true)
                 .logResponses(true)

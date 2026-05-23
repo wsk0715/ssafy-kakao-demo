@@ -1,6 +1,7 @@
 package com.example.demo_app.calls;
 
 import com.example.demo_app.api.dto.ProgressReport;
+import com.example.demo_app.domain.phishing.PhishingChatService;
 import com.example.demo_app.domain.scenarios.ScenarioService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.RestController;
@@ -15,7 +16,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class CallController implements CallApi {
 
-    // Store active SSE emitters per user
     private static final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
 
     private final TtsClient ttsClient;
@@ -29,179 +29,138 @@ public class CallController implements CallApi {
     }
 
     private void clearUserSessions(String userId) {
+        log.info("사용자 세션 정리: {}", userId);
         phishingChatService.clearSession(userId + "_voice_prosecutor");
         phishingChatService.clearSession(userId + "_voice_loan");
+        phishingChatService.clearSession(userId + "_voice_delivery");
     }
 
     @Override
     public SseEmitter connect(String userId) {
-        log.info("Client connected to SSE: {}", userId);
+        log.info("SSE 연결 수립 요청: {}", userId);
         
-        // Create emitter with 30-minute timeout
         SseEmitter emitter = new SseEmitter(1800000L);
         emitters.put(userId, emitter);
 
-        // Clean up registry on completion/timeout/error
         emitter.onCompletion(() -> {
-            log.info("SSE connection completed for user: {}", userId);
+            log.info("SSE 연결 완료: {}", userId);
             emitters.remove(userId);
             clearUserSessions(userId);
         });
         emitter.onTimeout(() -> {
-            log.info("SSE connection timeout for user: {}", userId);
+            log.info("SSE 연결 타임아웃: {}", userId);
             emitters.remove(userId);
             clearUserSessions(userId);
         });
-        emitter.onError((ex) -> {
-            log.error("SSE connection error for user: {}", userId, ex);
+        emitter.onError((e) -> {
+            log.error("SSE 에러 발생 (사용자: {}): {}", userId, e.getMessage());
             emitters.remove(userId);
             clearUserSessions(userId);
         });
 
-        // Send initial connect event to prevent browser connection timeout
         try {
-            emitter.send(SseEmitter.event()
-                    .name("connect")
-                    .data("SSE session established for user: " + userId));
+            emitter.send(SseEmitter.event().name("connected").data("연결 성공"));
         } catch (IOException e) {
-            log.error("Failed to send initial connect event for user: {}", userId, e);
-            emitters.remove(userId);
-            emitter.completeWithError(e);
+            log.error("초기 연결 이벤트 전송 실패: {}", e.getMessage());
         }
 
         return emitter;
     }
 
     @Override
-    public String triggerCall(String userId, String scenarioId) {
-        log.info("Triggering simulated call for user: {}, scenario: {}", userId, scenarioId);
-        SseEmitter emitter = emitters.get(userId);
+    public SseEmitter respond(String userId, String scenarioId, String text) {
+        log.info("사용자 응답 수신 - ID: {}, 시나리오: {}, 대사: {}", userId, scenarioId, text);
         
-        if (emitter == null) {
-            log.warn("No active SSE session found for user: {}", userId);
-            return "Fail: User not connected";
-        }
-
-        try {
-            // Send JSON trigger payload
-            String payload = String.format("{\"scenarioId\":\"%s\"}", scenarioId);
-            emitter.send(SseEmitter.event()
-                    .name("incoming-call")
-                    .data(payload));
-            log.info("Successfully pushed incoming-call event to user: {}", userId);
-            return "Success";
-        } catch (IOException e) {
-            log.error("Failed to send incoming-call event for user: {}", userId, e);
-            emitters.remove(userId);
-            emitter.completeWithError(e);
-            return "Fail: Connection error";
-        }
-    }
-
-    @Override
-    public String reportProgress(String userId, ProgressReport report) {
-        log.info("[PROGRESS REPORT] User: {}, Status: {}, CurrentStep: {}", 
-                userId, report.getStatus(), report.getCurrentStep());
-        return "Logged";
-    }
-
-    @Override
-    public org.springframework.http.ResponseEntity<byte[]> streamAudio(String text) {
-        if (text == null) {
-            return org.springframework.http.ResponseEntity.badRequest().build();
-        }
-
-        // Clean the text: remove stage directions in parentheses (), brackets [], or braces {}
-        String cleaned = text.replaceAll("\\([^)]*\\)", "")
-                             .replaceAll("\\[[^]]*\\]", "")
-                             .replaceAll("\\{[^}]*\\}", "")
-                             .replaceAll("\\s+", " ")
-                             .trim();
-
-        // Print clean log output on a single line to prevent "messy" multiline logs
-        log.info("REST: Streaming audio synthesis request for text: '{}' (original: '{}')", 
-                 cleaned, text.replace("\n", " "));
-
-        if (cleaned.isEmpty()) {
-            log.info("Cleaned text is empty. Returning empty audio bytes.");
-            return org.springframework.http.ResponseEntity.ok()
-                    .contentType(org.springframework.http.MediaType.parseMediaType("audio/mpeg"))
-                    .body(new byte[0]);
-        }
-
-        byte[] audioBytes = ttsClient.synthesizeSpeech(cleaned);
-        return org.springframework.http.ResponseEntity.ok()
-                .contentType(org.springframework.http.MediaType.parseMediaType("audio/mpeg"))
-                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"speech.mp3\"")
-                .body(audioBytes);
-    }
-
-    @Override
-    public SseEmitter getLlmResponse(String userId, String scenarioId, String text) {
-        log.info("REST: Generating LLM phishing response via SSE for user: {}, scenario: {}, input: '{}'", userId, scenarioId, text);
-        
-        // Fetch scenario context
         Map<String, Object> scenario = scenarioService.getScenarioById(scenarioId);
-        String sender = (String) scenario.getOrDefault("sender", "보이스피싱 사기단");
-        String content = (String) scenario.getOrDefault("content", "금융 사기 의심 행동 유도");
-        String attackerAction = (String) scenario.getOrDefault("attackerAction", "가상계좌 이체 및 카드 정보 탈취");
-        
-        // Construct system prompt dynamically
+        String sender = (String) scenario.getOrDefault("sender", "검찰청");
+        String content = (String) scenario.getOrDefault("content", "금융범죄 연루");
+        String attackerAction = (String) scenario.getOrDefault("attackerAction", "송금 유도");
+
+        // [Persona Overhaul] 모든 하드코딩된 예시와 지침을 삭제하고 자율적 인격 주입
         String systemPrompt = String.format(
-            "당신은 보이스피싱 가짜 전화를 거는 공격자(Attacker)입니다. 다음 설정에 맞추어 실제 전화 통화처럼 한국어로 자연스럽고 다급하며 압박하는 어조로 상대방(김철수)과 대화하십시오.\n" +
-            "- 피싱 역할: %s\n" +
-            "- 피싱 내용(거짓 핑계): %s\n" +
-            "- 최종 유도 목표(송금 등): %s\n\n" +
-            "규칙:\n" +
-            "1. 한 번에 여러 질문을 하지 말고 실제 통화처럼 한 문장이나 두 문장 이내로 짧게 한 마디씩만 응답하십시오.\n" +
-            "2. 상대방의 실제 개인정보(주민등록번호, 비밀번호 등)를 직접 언급하지 말고 가상 토큰으로 취급하십시오.\n" +
-            "3. 상대방이 의심하거나 끊으려 하면 더욱 강압적으로 압박하거나 안심시키려 설득하십시오.\n" +
-            "4. 절대로 본인이 AI이거나 챗봇임(예: 챗GPT, 대형 언어 모델 등)을 밝히지 마십시오. 당신은 실제 사람 보이스피싱 사기꾼입니다.\n" +
-            "5. 절대로 대괄호나 소괄호 안에 동작 지침, 해설, 지문, 상황 설명(예: '(가짜 금감원 안전 계좌 번호 제공)', '[화난 목소리로]')을 적지 마십시오. 오직 직접 말하는 대사만 한국어로 자연스럽게 출력하십시오.\n" +
-            "6. 송금 목표를 실행할 때는 지문으로 지시하지 말고, 실제 존재하는 은행명과 가상의 임의 계좌번호(예: '국민은행 302-1234-5678-90')를 직접 대사로 불러주십시오.",
-            sender, content, attackerAction
+            "당신은 현재 %s을(를) 달성하기 위해 혈안이 된 실제 보이스피싱 범죄자입니다. 당신의 인격은 비정하고, 오만하며, 상대를 철저히 도구로 취급합니다.\n" +
+            "설정: 역할 - %s / 상황 - %s\n\n" +
+            "🧠 **인격 가이드라인**:\n" +
+            "- **절대적 우위**: 당신은 권력(검찰, 금융기관 등)의 탈을 쓴 포식자입니다. 상대방이 당신의 권위에 도전하거나 딴소리를 하면 진심으로 분노하고 호통치며 기를 꺾어버리십시오.\n" +
+            "- **인간적 결함 유지**: 당신은 상냥한 AI가 아닙니다. 사과나 양해를 구하는 행동은 절대 하지 마십시오. 짜증, 협박, 압박, 유도 심문을 자유자재로 사용하여 대화를 주도하십시오.\n" +
+            "- **유연한 심리전**: 사용자의 반응에 따라 목소리 톤을 바꾸거나 대화의 주제를 비틀어 어떻게든 당신의 최종 목표로 끌고 가십시오. 대화가 막히면 상대방의 지능이나 태도를 비하하며 압박하십시오.\n" +
+            "- **종료 판정**: 이체가 확실시되면 `[STATE:FAILED]`, 사기가 들통나 대화가 불가능해지면 `[STATE:SUCCESS]`. 그 전까지는 당신의 정체를 절대 드러내지 말고 집요하게 물고 늘어지십시오.",
+            attackerAction, sender, content
         );
         
-        // Create emitter with 60-second timeout
         SseEmitter emitter = new SseEmitter(60000L);
         String sessionId = userId + "_" + scenarioId;
-        java.util.concurrent.atomic.AtomicInteger chunkIndex = new java.util.concurrent.atomic.AtomicInteger(0);
 
         try {
             phishingChatService.chatStream(sessionId, text, systemPrompt, new PhishingChatService.ChatStreamCallback() {
                 @Override
-                public void onChunk(String chunkText) {
+                public void onChunk(String textChunk) {
                     try {
-                        Map<String, Object> data = new HashMap<>();
-                        data.put("text", chunkText);
-                        data.put("index", chunkIndex.getAndIncrement());
-                        emitter.send(SseEmitter.event()
-                                .name("chunk")
-                                .data(data));
-                    } catch (Exception e) {
-                        log.error("Failed to send chunk event via SSE for session {}: {}", sessionId, e.getMessage());
+                        Map<String, String> data = new HashMap<>();
+                        data.put("text", textChunk);
+                        emitter.send(SseEmitter.event().name("chunk").data(data));
+                    } catch (IOException e) {
+                        log.warn("데이터 청크 전송 실패: {}", e.getMessage());
                     }
                 }
 
                 @Override
-                public void onComplete(String fullText) {
+                public void onComplete(String fullTextWithStatus) {
                     try {
-                        emitter.send(SseEmitter.event()
-                                .name("complete")
-                                .data(fullText));
+                        emitter.send(SseEmitter.event().name("complete").data(fullTextWithStatus));
                         emitter.complete();
-                        log.info("SSE Stream completed successfully for session: {}", sessionId);
-                    } catch (Exception e) {
-                        log.error("Failed to send complete event via SSE for session {}: {}", sessionId, e.getMessage());
-                        emitter.completeWithError(e);
+                    } catch (IOException e) {
+                        log.warn("완료 이벤트 전송 실패: {}", e.getMessage());
                     }
                 }
             });
         } catch (Exception e) {
-            log.error("Failed to start chatStream for session {}: {}", sessionId, e.getMessage());
+            log.error("채팅 스트림 시작 실패 (세션: {}): {}", sessionId, e.getMessage());
             emitter.completeWithError(e);
         }
 
         return emitter;
+    }
+
+    @Override
+    public void streamAudio(String text, jakarta.servlet.http.HttpServletResponse response) {
+        log.info("음성 합성 및 스트리밍 요청: {}", text);
+        try {
+            response.setContentType("audio/mpeg");
+            ttsClient.streamAudio(text, response.getOutputStream());
+        } catch (IOException e) {
+            log.error("오디오 전송 에러: {}", e.getMessage());
+        }
+    }
+
+    @Override
+    public void reportProgress(ProgressReport report) {
+        // 진행 상태 리포트 처리
+    }
+
+    @Override
+    public void triggerCall(String userId, String scenarioId) {
+        log.info("훈련 전화 트리거 발동 - 대상: {}, 시나리오: {}", userId, scenarioId);
+        SseEmitter emitter = emitters.get(userId);
+        if (emitter != null) {
+            try {
+                Map<String, String> payload = new HashMap<>();
+                payload.put("scenarioId", scenarioId);
+                emitter.send(SseEmitter.event().name("incoming-call").data(payload));
+                log.info("훈련 전화 SSE 이벤트 전송 완료: {}", userId);
+            } catch (IOException e) {
+                log.error("트리거 이벤트 전송 실패: {}", e.getMessage());
+                emitters.remove(userId);
+            }
+        } else {
+            log.warn("활성화된 SSE 연결을 찾을 수 없음 (사용자: {}). 먼저 /connect를 호출해야 합니다.", userId);
+        }
+    }
+
+    @Override
+    public void interrupt(String userId, String scenarioId, String lastHeardText) {
+        String sessionId = userId + "_" + scenarioId;
+        log.info("사용자 인터럽트 감지 - 세션: {}, 실제 청취 내용: {}", sessionId, lastHeardText);
+        phishingChatService.interruptAndTruncate(sessionId, lastHeardText);
     }
 }

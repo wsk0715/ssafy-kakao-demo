@@ -5,6 +5,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.io.IOException;
+import java.io.OutputStream;
+
 @Component
 @Slf4j
 public class TtsClient {
@@ -40,6 +43,17 @@ public class TtsClient {
         } catch (Exception e) {
             log.error("Edge-TTS API call failed: {}", e.getMessage());
             throw new RuntimeException("TTS synthesis failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Streams synthesized audio directly to the provided OutputStream.
+     */
+    public void streamAudio(String text, OutputStream outputStream) throws IOException {
+        byte[] audioData = synthesizeSpeech(text);
+        if (audioData != null && audioData.length > 0) {
+            outputStream.write(audioData);
+            outputStream.flush();
         }
     }
 }
