@@ -107,8 +107,29 @@ public class CallController implements CallApi {
 
     @Override
     public org.springframework.http.ResponseEntity<byte[]> streamAudio(String text) {
-        log.info("REST: Streaming audio synthesis request for text: '{}'", text);
-        byte[] audioBytes = ttsClient.synthesizeSpeech(text);
+        if (text == null) {
+            return org.springframework.http.ResponseEntity.badRequest().build();
+        }
+
+        // Clean the text: remove stage directions in parentheses (), brackets [], or braces {}
+        String cleaned = text.replaceAll("\\([^)]*\\)", "")
+                             .replaceAll("\\[[^]]*\\]", "")
+                             .replaceAll("\\{[^}]*\\}", "")
+                             .replaceAll("\\s+", " ")
+                             .trim();
+
+        // Print clean log output on a single line to prevent "messy" multiline logs
+        log.info("REST: Streaming audio synthesis request for text: '{}' (original: '{}')", 
+                 cleaned, text.replace("\n", " "));
+
+        if (cleaned.isEmpty()) {
+            log.info("Cleaned text is empty. Returning empty audio bytes.");
+            return org.springframework.http.ResponseEntity.ok()
+                    .contentType(org.springframework.http.MediaType.parseMediaType("audio/mpeg"))
+                    .body(new byte[0]);
+        }
+
+        byte[] audioBytes = ttsClient.synthesizeSpeech(cleaned);
         return org.springframework.http.ResponseEntity.ok()
                 .contentType(org.springframework.http.MediaType.parseMediaType("audio/mpeg"))
                 .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"speech.mp3\"")
@@ -135,7 +156,9 @@ public class CallController implements CallApi {
             "1. 한 번에 여러 질문을 하지 말고 실제 통화처럼 한 문장이나 두 문장 이내로 짧게 한 마디씩만 응답하십시오.\n" +
             "2. 상대방의 실제 개인정보(주민등록번호, 비밀번호 등)를 직접 언급하지 말고 가상 토큰으로 취급하십시오.\n" +
             "3. 상대방이 의심하거나 끊으려 하면 더욱 강압적으로 압박하거나 안심시키려 설득하십시오.\n" +
-            "4. 절대로 본인이 AI이거나 챗봇임(예: 챗GPT, 대형 언어 모델 등)을 밝히지 마십시오. 당신은 실제 사람 보이스피싱 사기꾼입니다.",
+            "4. 절대로 본인이 AI이거나 챗봇임(예: 챗GPT, 대형 언어 모델 등)을 밝히지 마십시오. 당신은 실제 사람 보이스피싱 사기꾼입니다.\n" +
+            "5. 절대로 대괄호나 소괄호 안에 동작 지침, 해설, 지문, 상황 설명(예: '(가짜 금감원 안전 계좌 번호 제공)', '[화난 목소리로]')을 적지 마십시오. 오직 직접 말하는 대사만 한국어로 자연스럽게 출력하십시오.\n" +
+            "6. 송금 목표를 실행할 때는 지문으로 지시하지 말고, 실제 존재하는 은행명과 가상의 임의 계좌번호(예: '국민은행 302-1234-5678-90')를 직접 대사로 불러주십시오.",
             sender, content, attackerAction
         );
         

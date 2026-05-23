@@ -180,7 +180,8 @@ public class PhishingChatService {
             return true;
         }
         // Heuristic: if sentence grows too long without punctuation, split at space
-        if (text.length() > 45 && lastChar == ' ') {
+        // Increased threshold from 45 to 75 to prevent unnatural Korean mid-phrase splits (e.g. '악화될' ... '수 있습니다')
+        if (text.length() > 75 && lastChar == ' ') {
             return true;
         }
         return false;

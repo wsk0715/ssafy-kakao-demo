@@ -4,7 +4,6 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useTrainingStore } from '../state/trainingStore'
 import { trainingService } from '../service/trainingService'
-import { trainingApi } from '../api/trainingApi'
 
 const store = useTrainingStore()
 
@@ -19,9 +18,12 @@ const start = (scenario: any) => {
   trainingService.startSimulation(scenario)
 }
 
+// selectChoice is unused in the text input simulator, commented out to avoid warnings
+/*
 const selectChoice = async (idx: number) => {
   await trainingService.handleUserChoice(idx)
 }
+*/
 
 const clickSmsLink = async () => {
   await trainingService.simulateClickLink()

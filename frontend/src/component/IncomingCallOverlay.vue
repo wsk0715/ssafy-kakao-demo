@@ -21,11 +21,53 @@ const activeAnalysis = ref<any>(null)
 const activeAudio = ref<HTMLAudioElement | null>(null)
 
 let responseEventSource: EventSource | null = null
-let audioQueue: string[] = []
+interface AudioQueueItem {
+  text: string
+  audio: HTMLAudioElement
+}
+let audioQueue: AudioQueueItem[] = []
 let isAudioPlaying = false
 let isSseCompleted = false
 
+let silenceTimer: any = null
+let silenceNudgeCount = 0
+
+const clearSilenceTimer = () => {
+  if (silenceTimer) {
+    console.log('[Silence Timer] Clearing active silence timer.')
+    clearTimeout(silenceTimer)
+    silenceTimer = null
+  }
+}
+
+const startSilenceTimer = () => {
+  clearSilenceTimer()
+  if (store.simStatus !== 'CONNECTED') return
+  console.log('[Silence Timer] Starting 3-second countdown for user response...')
+  silenceTimer = setTimeout(() => {
+    handleSilence()
+  }, 3000)
+}
+
+const handleSilence = async () => {
+  if (store.simStatus !== 'CONNECTED') return
+  silenceNudgeCount++
+  if (silenceNudgeCount === 1) {
+    console.log('[Silence Handler] 1st silence timeout (3s). Sending normal nudge request to LLM.')
+    handleUserSpeechInput('(대답 없음)')
+  } else if (silenceNudgeCount === 2) {
+    console.log('[Silence Handler] 2nd silence timeout (3s). Sending highly aggressive and coercive nudge request to LLM.')
+    handleUserSpeechInput('(대답 없음 - 매우 강압적이고 다급하며 위협적인 어조로 상대방을 강하게 압박하고 독촉)')
+  } else {
+    console.log('[Silence Handler] 3rd silence timeout (3s). Attacker hanging up the call.')
+    userSpokenText.value = '지속된 침묵으로 피싱범이 의심하며 전화를 끊었습니다.'
+    clearSilenceTimer()
+    await recordSuccessHangUp(store.currentStepIndex)
+  }
+}
+
 const stopActiveAudio = () => {
+  clearSilenceTimer()
   if (responseEventSource) {
     console.log('[SSE LLM] Closing active response SSE.')
     try {
@@ -35,6 +77,17 @@ const stopActiveAudio = () => {
     }
     responseEventSource = null
   }
+  
+  // Stop and release all preloaded audio objects to cancel background network requests
+  audioQueue.forEach(item => {
+    try {
+      item.audio.pause()
+      item.audio.src = ''
+      item.audio.load()
+    } catch (e) {
+      // ignore
+    }
+  })
   audioQueue = []
   isAudioPlaying = false
   isSseCompleted = false
@@ -43,6 +96,8 @@ const stopActiveAudio = () => {
     console.log('[Audio] Stopping active speech audio.')
     try {
       activeAudio.value.pause()
+      activeAudio.value.src = ''
+      activeAudio.value.load()
     } catch (e) {
       console.error(e)
     }
@@ -183,6 +238,7 @@ const triggerAttackerSpeech = () => {
       if (isAttackerSpeaking.value) {
         isAttackerSpeaking.value = false
         startSTT()
+        startSilenceTimer()
       }
     }, speechDuration)
   })
@@ -192,6 +248,7 @@ const triggerAttackerSpeech = () => {
     isAttackerSpeaking.value = false
     activeAudio.value = null
     startSTT()
+    startSilenceTimer()
   }
 
   audioObj.onerror = (err) => {
@@ -199,6 +256,7 @@ const triggerAttackerSpeech = () => {
     isAttackerSpeaking.value = false
     activeAudio.value = null
     startSTT()
+    startSilenceTimer()
   }
 }
 
@@ -209,6 +267,10 @@ const handleUserSpeechInput = async (spokenText: string) => {
 
   const step = currentVoiceStep.value
   if (!step) return
+
+  if (spokenText !== '(대답 없음)') {
+    silenceNudgeCount = 0
+  }
 
   // Detect negative/suspicious keywords (SAFE actions)
   const isSuspicious = /사기|사칭|의심|끊어|피싱|경찰|검찰청|금감원|아닌가|신고|아니요|못 믿/i.test(spokenText)
@@ -248,34 +310,33 @@ const handleUserSpeechInput = async (spokenText: string) => {
         isAttackerSpeaking.value = false
         activeAudio.value = null
         startSTT()
+        startSilenceTimer()
       }
       return
     }
 
     isAudioPlaying = true
-    const chunkText = audioQueue.shift()!
-    const streamUrl = `/api/v1/calls/stream?text=${encodeURIComponent(chunkText)}`
-    console.log(`[TTS Streaming] Playing chunk: "${chunkText}"`)
+    const item = audioQueue.shift()!
+    activeAudio.value = item.audio
 
-    const audioObj = new Audio(streamUrl)
-    activeAudio.value = audioObj
+    console.log(`[TTS Streaming] Playing preloaded chunk: "${item.text}"`)
 
-    audioObj.play().catch(e => {
+    item.audio.play().catch(e => {
       console.warn('[Audio Queue Playback Blocked] Using fallback reading timer.', e)
-      const speechDuration = Math.min(Math.max(chunkText.length * 85, 1500), 4500)
+      const speechDuration = Math.min(Math.max(item.text.length * 85, 1500), 4500)
       setTimeout(() => {
         isAudioPlaying = false
         playNextAudio()
       }, speechDuration)
     })
 
-    audioObj.onended = () => {
+    item.audio.onended = () => {
       isAudioPlaying = false
       playNextAudio()
     }
 
-    audioObj.onerror = (err) => {
-      console.error('[TTS Audio Queue Error] Failed to play chunk. Skipping.', err)
+    item.audio.onerror = (err) => {
+      console.error('[TTS Audio Queue Error] Failed to play preloaded chunk. Skipping.', err)
       isAudioPlaying = false
       playNextAudio()
     }
@@ -300,8 +361,16 @@ const handleUserSpeechInput = async (spokenText: string) => {
         dynamicDialogue.value = chunkText
       }
 
-      // Add to audio queue and trigger playback
-      audioQueue.push(chunkText)
+      // Preload audio as soon as text chunk is received
+      const streamUrl = `/api/v1/calls/stream?text=${encodeURIComponent(chunkText)}`
+      const audioObj = new Audio(streamUrl)
+      audioObj.preload = 'auto' // Browser begins downloading / backend begins generating TTS
+
+      audioQueue.push({
+        text: chunkText,
+        audio: audioObj
+      })
+
       if (!isAudioPlaying) {
         playNextAudio()
       }
@@ -322,6 +391,7 @@ const handleUserSpeechInput = async (spokenText: string) => {
       isAttackerSpeaking.value = false
       activeAudio.value = null
       startSTT()
+      startSilenceTimer()
     }
   })
 
@@ -334,7 +404,13 @@ const handleUserSpeechInput = async (spokenText: string) => {
     }
     if (dynamicDialogue.value === '') {
       dynamicDialogue.value = '연결 상태가 좋지 않아 답변이 지연되고 있습니다.'
-      audioQueue.push(dynamicDialogue.value)
+      const fallbackUrl = `/api/v1/calls/stream?text=${encodeURIComponent(dynamicDialogue.value)}`
+      const fallbackAudio = new Audio(fallbackUrl)
+      fallbackAudio.preload = 'auto'
+      audioQueue.push({
+        text: dynamicDialogue.value,
+        audio: fallbackAudio
+      })
     }
     if (!isAudioPlaying) {
       playNextAudio()
@@ -342,7 +418,8 @@ const handleUserSpeechInput = async (spokenText: string) => {
   }
 }
 
-// Direct choice selection (button fallbacks)
+// Direct choice selection (button fallbacks - commented out as unused in text-input flow)
+/*
 const handleChoiceDirectly = async (choiceIndex: number) => {
   const scenario = store.activeScenario
   if (!scenario) return
@@ -373,6 +450,7 @@ const handleChoiceDirectly = async (choiceIndex: number) => {
     }
   }
 }
+*/
 
 const recordSuccessHangUp = async (stepIndex: number) => {
   const scenario = store.activeScenario
