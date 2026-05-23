@@ -49,10 +49,10 @@ public interface CallApi {
             @RequestParam(value = "text") String text
     );
 
-    @Operation(summary = "실시간 LLM 기반 피싱 대화 응답 생성", description = "사용자의 입력 텍스트에 대응하는 보이스피싱 공격자의 대사를 실시간으로 생성합니다.")
-    @ApiResponse(responseCode = "200", description = "생성된 대화 응답 데이터 반환")
-    @PostMapping("/respond")
-    Map<String, Object> getLlmResponse(
+    @Operation(summary = "실시간 LLM 기반 피싱 대화 응답 생성 (스트리밍)", description = "사용자의 입력 텍스트에 대응하는 보이스피싱 공격자의 대사를 실시간으로 생성하여 SSE 스트림으로 반환합니다.")
+    @ApiResponse(responseCode = "200", description = "SSE 스트림 반환")
+    @GetMapping(value = "/respond", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    SseEmitter getLlmResponse(
             @Parameter(description = "연결된 사용자 고유 식별자", example = "demo_user")
             @RequestParam("userId") String userId,
             @Parameter(description = "모의 전화에 사용할 피싱 시나리오 ID", example = "voice_prosecutor")

@@ -116,8 +116,8 @@ public class CallController implements CallApi {
     }
 
     @Override
-    public Map<String, Object> getLlmResponse(String userId, String scenarioId, String text) {
-        log.info("REST: Generating LLM phishing response for user: {}, scenario: {}, input: '{}'", userId, scenarioId, text);
+    public SseEmitter getLlmResponse(String userId, String scenarioId, String text) {
+        log.info("REST: Generating LLM phishing response via SSE for user: {}, scenario: {}, input: '{}'", userId, scenarioId, text);
         
         // Fetch scenario context
         Map<String, Object> scenario = scenarioService.getScenarioById(scenarioId);
@@ -139,12 +139,46 @@ public class CallController implements CallApi {
             sender, content, attackerAction
         );
         
-        // Chat using session memory
+        // Create emitter with 60-second timeout
+        SseEmitter emitter = new SseEmitter(60000L);
         String sessionId = userId + "_" + scenarioId;
-        String llmReply = phishingChatService.chat(sessionId, text, systemPrompt);
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("dialogue", llmReply);
-        return response;
+        java.util.concurrent.atomic.AtomicInteger chunkIndex = new java.util.concurrent.atomic.AtomicInteger(0);
+
+        try {
+            phishingChatService.chatStream(sessionId, text, systemPrompt, new PhishingChatService.ChatStreamCallback() {
+                @Override
+                public void onChunk(String chunkText) {
+                    try {
+                        Map<String, Object> data = new HashMap<>();
+                        data.put("text", chunkText);
+                        data.put("index", chunkIndex.getAndIncrement());
+                        emitter.send(SseEmitter.event()
+                                .name("chunk")
+                                .data(data));
+                    } catch (Exception e) {
+                        log.error("Failed to send chunk event via SSE for session {}: {}", sessionId, e.getMessage());
+                    }
+                }
+
+                @Override
+                public void onComplete(String fullText) {
+                    try {
+                        emitter.send(SseEmitter.event()
+                                .name("complete")
+                                .data(fullText));
+                        emitter.complete();
+                        log.info("SSE Stream completed successfully for session: {}", sessionId);
+                    } catch (Exception e) {
+                        log.error("Failed to send complete event via SSE for session {}: {}", sessionId, e.getMessage());
+                        emitter.completeWithError(e);
+                    }
+                }
+            });
+        } catch (Exception e) {
+            log.error("Failed to start chatStream for session {}: {}", sessionId, e.getMessage());
+            emitter.completeWithError(e);
+        }
+
+        return emitter;
     }
 }

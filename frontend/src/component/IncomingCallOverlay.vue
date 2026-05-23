@@ -20,10 +20,32 @@ const isSpeakerOn = ref(false)
 const activeAnalysis = ref<any>(null)
 const activeAudio = ref<HTMLAudioElement | null>(null)
 
+let responseEventSource: EventSource | null = null
+let audioQueue: string[] = []
+let isAudioPlaying = false
+let isSseCompleted = false
+
 const stopActiveAudio = () => {
+  if (responseEventSource) {
+    console.log('[SSE LLM] Closing active response SSE.')
+    try {
+      responseEventSource.close()
+    } catch (e) {
+      console.error(e)
+    }
+    responseEventSource = null
+  }
+  audioQueue = []
+  isAudioPlaying = false
+  isSseCompleted = false
+
   if (activeAudio.value) {
     console.log('[Audio] Stopping active speech audio.')
-    activeAudio.value.pause()
+    try {
+      activeAudio.value.pause()
+    } catch (e) {
+      console.error(e)
+    }
     activeAudio.value = null
   }
 }
@@ -210,17 +232,114 @@ const handleUserSpeechInput = async (spokenText: string) => {
   store.setStepIndex(nextStep)
   callConnectionService.reportProgress('CONNECTED', nextStep)
 
-  try {
-    const res = await trainingApi.getLlmResponse(scenario.id, spokenText)
-    dynamicDialogue.value = res.dialogue
-  } catch (err) {
-    console.error('Failed to get LLM response:', err)
-    dynamicDialogue.value = '' // Fallback to static dialogue
+  // Reset audio queue state and stop any existing audio
+  stopActiveAudio()
+  
+  isAttackerSpeaking.value = true
+  dynamicDialogue.value = ''
+  isSseCompleted = false
+  isAudioPlaying = false
+  audioQueue = []
+
+  const playNextAudio = () => {
+    if (audioQueue.length === 0) {
+      if (isSseCompleted) {
+        console.log('[Audio Queue] Finished playing all streamed chunks.')
+        isAttackerSpeaking.value = false
+        activeAudio.value = null
+        startSTT()
+      }
+      return
+    }
+
+    isAudioPlaying = true
+    const chunkText = audioQueue.shift()!
+    const streamUrl = `/api/v1/calls/stream?text=${encodeURIComponent(chunkText)}`
+    console.log(`[TTS Streaming] Playing chunk: "${chunkText}"`)
+
+    const audioObj = new Audio(streamUrl)
+    activeAudio.value = audioObj
+
+    audioObj.play().catch(e => {
+      console.warn('[Audio Queue Playback Blocked] Using fallback reading timer.', e)
+      const speechDuration = Math.min(Math.max(chunkText.length * 85, 1500), 4500)
+      setTimeout(() => {
+        isAudioPlaying = false
+        playNextAudio()
+      }, speechDuration)
+    })
+
+    audioObj.onended = () => {
+      isAudioPlaying = false
+      playNextAudio()
+    }
+
+    audioObj.onerror = (err) => {
+      console.error('[TTS Audio Queue Error] Failed to play chunk. Skipping.', err)
+      isAudioPlaying = false
+      playNextAudio()
+    }
   }
 
-  setTimeout(() => {
-    triggerAttackerSpeech()
-  }, 1000)
+  const sseUrl = `/api/v1/calls/respond?userId=demo_user&scenarioId=${encodeURIComponent(scenario.id)}&text=${encodeURIComponent(spokenText)}`
+  console.log('[SSE LLM] Connecting to stream:', sseUrl)
+  
+  const es = new EventSource(sseUrl)
+  responseEventSource = es
+
+  es.addEventListener('chunk', (event: any) => {
+    try {
+      const data = JSON.parse(event.data)
+      const chunkText = data.text
+      console.log('[SSE LLM Chunk]:', chunkText)
+
+      // Append text
+      if (dynamicDialogue.value) {
+        dynamicDialogue.value += ' ' + chunkText
+      } else {
+        dynamicDialogue.value = chunkText
+      }
+
+      // Add to audio queue and trigger playback
+      audioQueue.push(chunkText)
+      if (!isAudioPlaying) {
+        playNextAudio()
+      }
+    } catch (err) {
+      console.error('Failed to parse SSE chunk:', err)
+    }
+  })
+
+  es.addEventListener('complete', (event: any) => {
+    console.log('[SSE LLM Complete] Finished stream:', event.data)
+    isSseCompleted = true
+    es.close()
+    if (responseEventSource === es) {
+      responseEventSource = null
+    }
+    // If audio is not playing and queue is empty, finish
+    if (!isAudioPlaying && audioQueue.length === 0) {
+      isAttackerSpeaking.value = false
+      activeAudio.value = null
+      startSTT()
+    }
+  })
+
+  es.onerror = (err) => {
+    console.warn('[SSE LLM Connection Error]', err)
+    isSseCompleted = true
+    es.close()
+    if (responseEventSource === es) {
+      responseEventSource = null
+    }
+    if (dynamicDialogue.value === '') {
+      dynamicDialogue.value = '연결 상태가 좋지 않아 답변이 지연되고 있습니다.'
+      audioQueue.push(dynamicDialogue.value)
+    }
+    if (!isAudioPlaying) {
+      playNextAudio()
+    }
+  }
 }
 
 // Direct choice selection (button fallbacks)

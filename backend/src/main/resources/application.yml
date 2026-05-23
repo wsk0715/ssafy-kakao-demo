@@ -25,6 +25,6 @@ tts:
   api-url: ${LOCAL_TTS_URL}
 
 upstage:
-  api-key: ${UPSTAGE_API_KEY:}
+  api-key: ${UPSTAGE_API_KEY}
   api-url: ${UPSTAGE_API_URL}
   model-name: ${UPSTAGE_MODEL_NAME}

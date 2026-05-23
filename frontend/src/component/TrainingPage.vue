@@ -1,7 +1,7 @@
 <!-- 5-layer architecture: Component (Page) Layer for Simulation -->
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useTrainingStore } from '../state/trainingStore'
 import { trainingService } from '../service/trainingService'
 import { trainingApi } from '../api/trainingApi'
@@ -36,11 +36,29 @@ const inputCredentials = async () => {
 }
 
 const cancel = () => {
+  stopDesktopActiveSSE()
   trainingService.cancelSimulation()
 }
 
 const desktopTextInput = ref('')
 const desktopDynamicDialogue = ref('')
+let desktopResponseEventSource: EventSource | null = null
+
+const stopDesktopActiveSSE = () => {
+  if (desktopResponseEventSource) {
+    console.log('[SSE LLM Desktop] Closing active response SSE.')
+    try {
+      desktopResponseEventSource.close()
+    } catch (e) {
+      console.error(e)
+    }
+    desktopResponseEventSource = null
+  }
+}
+
+onUnmounted(() => {
+  stopDesktopActiveSSE()
+})
 
 const submitDesktopTextInput = async () => {
   const text = desktopTextInput.value.trim()
@@ -54,6 +72,7 @@ const submitDesktopTextInput = async () => {
   
   if (isSuspicious) {
     desktopDynamicDialogue.value = ''
+    stopDesktopActiveSSE()
     await trainingService.handleUserChoice(1) // Hang up / End
     return
   }
@@ -62,12 +81,47 @@ const submitDesktopTextInput = async () => {
   const nextStep = Math.min(store.currentStepIndex + 1, scenario.steps.length - 1)
   store.setStepIndex(nextStep)
   
-  try {
-    const res = await trainingApi.getLlmResponse(scenario.id, text)
-    desktopDynamicDialogue.value = res.dialogue
-  } catch (err) {
-    console.error('Failed to get LLM response:', err)
-    desktopDynamicDialogue.value = '' // Fallback to static dialogue
+  stopDesktopActiveSSE()
+  desktopDynamicDialogue.value = ''
+
+  const sseUrl = `/api/v1/calls/respond?userId=demo_user&scenarioId=${encodeURIComponent(scenario.id)}&text=${encodeURIComponent(text)}`
+  console.log('[SSE LLM Desktop] Connecting to stream:', sseUrl)
+
+  const es = new EventSource(sseUrl)
+  desktopResponseEventSource = es
+
+  es.addEventListener('chunk', (event: any) => {
+    try {
+      const data = JSON.parse(event.data)
+      const chunkText = data.text
+      console.log('[SSE LLM Desktop Chunk]:', chunkText)
+      if (desktopDynamicDialogue.value) {
+        desktopDynamicDialogue.value += ' ' + chunkText
+      } else {
+        desktopDynamicDialogue.value = chunkText
+      }
+    } catch (err) {
+      console.error('Failed to parse SSE desktop chunk:', err)
+    }
+  })
+
+  es.addEventListener('complete', (event: any) => {
+    console.log('[SSE LLM Desktop Complete] Finished stream:', event.data)
+    es.close()
+    if (desktopResponseEventSource === es) {
+      desktopResponseEventSource = null
+    }
+  })
+
+  es.onerror = (err) => {
+    console.warn('[SSE LLM Desktop Connection Error]', err)
+    es.close()
+    if (desktopResponseEventSource === es) {
+      desktopResponseEventSource = null
+    }
+    if (desktopDynamicDialogue.value === '') {
+      desktopDynamicDialogue.value = '연결 상태가 좋지 않아 답변이 지연되고 있습니다.'
+    }
   }
 }
 </script>
