@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import java.util.Map;
 
 @Tag(name = "Call Simulator API", description = "모의 피싱 가상 통화 시뮬레이터 제어 및 실시간 연동 API")
 @RequestMapping("/api/v1/calls")
@@ -42,10 +43,22 @@ public interface CallApi {
 
     @Operation(summary = "텍스트 기반 실시간 WAV 음성 스트리밍", description = "전달받은 텍스트를 Local ChatTTS 엔진을 거쳐 실시간 WAV 오디오 바이너리 스트림으로 변환하여 반환합니다.")
     @ApiResponse(responseCode = "200", description = "WAV 오디오 스트림 반환")
-    @GetMapping(value = "/stream", produces = "audio/wav")
+    @GetMapping(value = "/stream")
     org.springframework.http.ResponseEntity<byte[]> streamAudio(
             @Parameter(description = "음성으로 변환할 텍스트 대사", example = "서울중앙지검 김민수 검사입니다.")
             @RequestParam(value = "text") String text
+    );
+
+    @Operation(summary = "실시간 LLM 기반 피싱 대화 응답 생성", description = "사용자의 입력 텍스트에 대응하는 보이스피싱 공격자의 대사를 실시간으로 생성합니다.")
+    @ApiResponse(responseCode = "200", description = "생성된 대화 응답 데이터 반환")
+    @PostMapping("/respond")
+    Map<String, Object> getLlmResponse(
+            @Parameter(description = "연결된 사용자 고유 식별자", example = "demo_user")
+            @RequestParam("userId") String userId,
+            @Parameter(description = "모의 전화에 사용할 피싱 시나리오 ID", example = "voice_prosecutor")
+            @RequestParam("scenarioId") String scenarioId,
+            @Parameter(description = "사용자의 입력 텍스트", example = "네, 무슨 일이죠?")
+            @RequestParam("text") String text
     );
 }
 

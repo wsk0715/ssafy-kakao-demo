@@ -59,5 +59,16 @@ export const trainingApi = {
     const data = await response.json()
     console.log('Successfully fetched monthly report from backend:', data)
     return data as MonthlyReport
+  },
+
+  async getLlmResponse(scenarioId: string, text: string): Promise<{ dialogue: string }> {
+    console.log('[API POST] Fetching LLM phishing dialogue response from backend:', { scenarioId, text })
+    const response = await fetch(`/api/v1/calls/respond?userId=demo_user&scenarioId=${encodeURIComponent(scenarioId)}&text=${encodeURIComponent(text)}`, {
+      method: 'POST'
+    })
+    if (!response.ok) {
+      throw new Error(`Backend LLM respond API returned non-OK status: ${response.status}`)
+    }
+    return await response.json() as { dialogue: string }
   }
 }

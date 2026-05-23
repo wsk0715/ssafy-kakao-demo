@@ -33,6 +33,18 @@ let recognition: any = null
 const isListening = ref(false)
 const userSpokenText = ref('')
 const isAttackerSpeaking = ref(false)
+const textInput = ref('')
+const dynamicDialogue = ref('')
+
+const submitTextInput = () => {
+  const text = textInput.value.trim()
+  if (!text) return
+  
+  textInput.value = ''
+  userSpokenText.value = text
+  console.log('[Text Input Submitted]:', text)
+  handleUserSpeechInput(text)
+}
 
 const formatDuration = (sec: number) => {
   const m = Math.floor(sec / 60)
@@ -132,16 +144,18 @@ const triggerAttackerSpeech = () => {
   
   isAttackerSpeaking.value = true
   
+  const dialogueToPlay = dynamicDialogue.value || step.dialogue
+  
   // Call backend streaming endpoint (/api/v1/calls/stream?text=...)
-  const streamUrl = `/api/v1/calls/stream?text=${encodeURIComponent(step.dialogue)}`
-  console.log(`[TTS Audio Request] Playing text: "${step.dialogue}" via URL: ${streamUrl}`)
+  const streamUrl = `/api/v1/calls/stream?text=${encodeURIComponent(dialogueToPlay)}`
+  console.log(`[TTS Audio Request] Playing text: "${dialogueToPlay}" via URL: ${streamUrl}`)
   
   const audioObj = new Audio(streamUrl)
   activeAudio.value = audioObj
   
   audioObj.play().catch(e => {
     console.warn('[Audio Playback Blocked/Failed] Fallback to simulated reading duration.', e)
-    const textLength = step.dialogue.length
+    const textLength = dialogueToPlay.length
     const speechDuration = Math.min(Math.max(textLength * 80, 1500), 5000)
     setTimeout(() => {
       if (isAttackerSpeaking.value) {
@@ -179,33 +193,34 @@ const handleUserSpeechInput = async (spokenText: string) => {
   // Detect positive/compliance keywords (CRITICAL actions)
   const isAccepting = /네|맞아|맞습|예|할게|계좌|알겠|이체|송금|알려주/i.test(spokenText)
 
-  if (store.currentStepIndex < scenario.steps.length - 1) {
-    if (isSuspicious) {
-      userSpokenText.value = `[포착: ${spokenText}] => 위험을 감지하여 전화를 끊습니다.`
-      await recordSuccessHangUp(store.currentStepIndex)
-    } else {
-      userSpokenText.value = `[포착: ${spokenText}] => 대화 진행 중...`
-      const nextStep = store.currentStepIndex + 1
-      store.setStepIndex(nextStep)
-      callConnectionService.reportProgress('CONNECTED', nextStep)
-      setTimeout(() => {
-        triggerAttackerSpeech()
-      }, 1000)
-    }
-  } else {
-    // Final step (pressure transfer)
-    if (isAccepting) {
-      userSpokenText.value = `[포착: ${spokenText}] => 금융사기 피해 의심 동작 수행.`
-      await recordFailedCall()
-    } else if (isSuspicious) {
-      userSpokenText.value = `[포착: ${spokenText}] => 마지막 단계에서 안전 종료.`
-      await recordSuccessHangUp(store.currentStepIndex)
-    } else {
-      // General response on final step defaults to warning/failed if the user didn't hang up
-      userSpokenText.value = `[포착: ${spokenText}] => 통화 지속으로 최종 노출.`
-      await recordFailedCall()
-    }
+  if (isSuspicious) {
+    userSpokenText.value = `[포착: ${spokenText}] => 위험을 감지하여 전화를 끊습니다.`
+    await recordSuccessHangUp(store.currentStepIndex)
+    return
   }
+
+  if (isAccepting && store.currentStepIndex === scenario.steps.length - 1) {
+    userSpokenText.value = `[포착: ${spokenText}] => 금융사기 피해 의심 동작 수행.`
+    await recordFailedCall()
+    return
+  }
+
+  userSpokenText.value = `[포착: ${spokenText}] => 대화 진행 중...`
+  const nextStep = Math.min(store.currentStepIndex + 1, scenario.steps.length - 1)
+  store.setStepIndex(nextStep)
+  callConnectionService.reportProgress('CONNECTED', nextStep)
+
+  try {
+    const res = await trainingApi.getLlmResponse(scenario.id, spokenText)
+    dynamicDialogue.value = res.dialogue
+  } catch (err) {
+    console.error('Failed to get LLM response:', err)
+    dynamicDialogue.value = '' // Fallback to static dialogue
+  }
+
+  setTimeout(() => {
+    triggerAttackerSpeech()
+  }, 1000)
 }
 
 // Direct choice selection (button fallbacks)
@@ -420,6 +435,7 @@ onMounted(() => {
 watch(() => store.simStatus as any, (newStatus: any) => {
   if (newStatus === 'CONNECTED') {
     duration.value = 0
+    dynamicDialogue.value = ''
     if (timerId) clearInterval(timerId)
     timerId = setInterval(() => {
       duration.value++
@@ -630,29 +646,24 @@ const closeReport = () => {
           </p>
         </div>
 
-        <!-- Dialog Options & Helper Buttons -->
-        <div v-if="currentVoiceStep && currentVoiceStep.options && currentVoiceStep.options.length" class="w-full max-w-xs mx-auto my-2 space-y-2 animate-fade-in">
+        <!-- Real-time Text Interaction Input -->
+        <div v-if="currentVoiceStep" class="w-full max-w-xs mx-auto my-3 space-y-2 animate-fade-in">
           <p class="text-[10px] text-slate-400 font-extrabold tracking-wider text-center uppercase">
-            🗣️ 답변 가이드 (말씀하시거나 직접 클릭하여 진행)
+            💬 답변 입력 (텍스트로 대화하기)
           </p>
-          <div class="flex flex-col gap-2">
+          <div class="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl p-1.5 px-3 shadow-[0_4px_30px_rgba(0,0,0,0.1)]">
+            <input 
+              v-model="textInput"
+              @keyup.enter="submitTextInput"
+              type="text" 
+              placeholder="대답을 입력하세요..." 
+              class="flex-1 bg-transparent text-xs text-white placeholder-slate-400 focus:outline-none py-1.5 px-1"
+            />
             <button 
-              v-for="(option, idx) in currentVoiceStep.options" 
-              :key="idx"
-              @click="handleChoiceDirectly(idx)"
-              :class="[
-                'w-full py-2 xs:py-2.5 px-4 rounded-xl text-xs font-bold text-left transition-all border shadow-sm active:scale-[0.98]',
-                idx === 1 
-                  ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-200 hover:text-rose-100' 
-                  : 'bg-white/10 hover:bg-white/15 border-white/10 text-slate-200 hover:text-white'
-              ]"
+              @click="submitTextInput"
+              class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-[11px] font-bold py-1.5 px-3.5 rounded-xl transition-all"
             >
-              <div class="flex items-start gap-2">
-                <span class="text-[9px] px-1.5 py-0.5 rounded bg-black/30 text-slate-300 font-black mt-0.5 flex-shrink-0">
-                  {{ idx === 0 ? '진행' : '대처' }}
-                </span>
-                <span class="leading-normal">{{ option }}</span>
-              </div>
+              전송
             </button>
           </div>
         </div>

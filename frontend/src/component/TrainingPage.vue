@@ -1,9 +1,10 @@
 <!-- 5-layer architecture: Component (Page) Layer for Simulation -->
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useTrainingStore } from '../state/trainingStore'
 import { trainingService } from '../service/trainingService'
+import { trainingApi } from '../api/trainingApi'
 
 const store = useTrainingStore()
 
@@ -14,6 +15,7 @@ onMounted(async () => {
 })
 
 const start = (scenario: any) => {
+  desktopDynamicDialogue.value = ''
   trainingService.startSimulation(scenario)
 }
 
@@ -35,6 +37,38 @@ const inputCredentials = async () => {
 
 const cancel = () => {
   trainingService.cancelSimulation()
+}
+
+const desktopTextInput = ref('')
+const desktopDynamicDialogue = ref('')
+
+const submitDesktopTextInput = async () => {
+  const text = desktopTextInput.value.trim()
+  if (!text) return
+  desktopTextInput.value = ''
+  
+  const scenario = store.activeScenario
+  if (!scenario) return
+
+  const isSuspicious = /사기|사칭|의심|끊어|피싱|경찰|검찰청|금감원|아닌가|신고|아니요|못 믿/i.test(text)
+  
+  if (isSuspicious) {
+    desktopDynamicDialogue.value = ''
+    await trainingService.handleUserChoice(1) // Hang up / End
+    return
+  }
+
+  // Progress the step index to simulate advancement
+  const nextStep = Math.min(store.currentStepIndex + 1, scenario.steps.length - 1)
+  store.setStepIndex(nextStep)
+  
+  try {
+    const res = await trainingApi.getLlmResponse(scenario.id, text)
+    desktopDynamicDialogue.value = res.dialogue
+  } catch (err) {
+    console.error('Failed to get LLM response:', err)
+    desktopDynamicDialogue.value = '' // Fallback to static dialogue
+  }
 }
 </script>
 
@@ -111,24 +145,36 @@ const cancel = () => {
           대화 진행 상황
         </p>
         <p class="text-sm font-semibold text-slate-700 text-left leading-relaxed">
-          {{ store.activeScenario.steps[store.currentStepIndex]?.dialogue }}
+          {{ desktopDynamicDialogue || store.activeScenario.steps[store.currentStepIndex]?.dialogue }}
         </p>
       </div>
 
-      <!-- Dialogue choices -->
-      <div class="w-full space-y-2.5 max-w-sm pb-10">
-        <button
-          v-for="(opt, idx) in store.activeScenario.steps[store.currentStepIndex]?.options"
-          :key="idx"
-          @click="selectChoice(idx)"
-          class="w-full bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-350 text-sm py-3.5 px-4 rounded-xl text-left font-bold transition-all duration-200 active:scale-[0.99] leading-normal shadow-2xs"
-        >
-          {{ opt }}
-        </button>
+      <!-- Dialogue input -->
+      <div class="w-full max-w-sm space-y-4 pb-10">
+        <div class="space-y-1.5">
+          <p class="text-xs font-bold text-slate-400 uppercase tracking-widest text-left">
+            💬 대답 입력 (텍스트로 대화 진행)
+          </p>
+          <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-1.5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] focus-within:border-indigo-500 transition-colors">
+            <input 
+              v-model="desktopTextInput"
+              @keyup.enter="submitDesktopTextInput"
+              type="text" 
+              placeholder="대답을 입력하세요..." 
+              class="flex-1 bg-transparent text-xs text-slate-800 placeholder-slate-400 focus:outline-none px-2.5 py-1.5"
+            />
+            <button 
+              @click="submitDesktopTextInput"
+              class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-[11px] font-bold py-1.5 px-4 rounded-lg transition-all"
+            >
+              전송
+            </button>
+          </div>
+        </div>
 
         <button 
           @click="cancel"
-          class="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/60 text-sm py-3.5 px-4 rounded-xl font-bold transition-all duration-200 active:scale-[0.99] mt-4"
+          class="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/60 text-xs py-3 px-4 rounded-xl font-bold transition-all duration-200 active:scale-[0.99] mt-2"
         >
           통화 거절 / 끊기
         </button>
