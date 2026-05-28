@@ -1,7 +1,7 @@
 <!-- 5-layer architecture: Component (Page) Layer for Vulnerability Report -->
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useReportStore } from '../state/reportStore'
 import { reportService } from '../service/reportService'
 
@@ -27,6 +27,50 @@ const formatDuration = (sec?: number) => {
   const m = Math.floor(sec / 60)
   const s = sec % 60
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+// 가계부 레퍼런스 스타일 도넛 차트 데이터 세그먼트 생성
+const colors = ['#00c7ae', '#258df2', '#7c5dfa', '#ec4899', '#cbd5e1']
+
+const segments = computed(() => {
+  const vList = store.report?.topVulnerabilities
+  if (!vList || vList.length === 0) {
+    return []
+  }
+  
+  const totalScore = vList.reduce((acc: number, curr: any) => acc + curr.score, 0) || 1
+  
+  let accumulatedPercent = 0
+  return vList.map((v: any, idx: number) => {
+    const percent = Math.round((v.score / totalScore) * 100)
+    const seg = {
+      name: v.type,
+      score: v.score,
+      percent: percent,
+      color: colors[idx % colors.length],
+      startPercent: accumulatedPercent
+    }
+    accumulatedPercent += percent
+    return seg
+  })
+})
+
+const highlightSegment = computed(() => {
+  if (segments.value && segments.value.length > 0) {
+    return segments.value[0]
+  }
+  return null
+})
+
+const getStrokeDashArray = (percent: number) => {
+  const circumference = 2 * Math.PI * 25 // 157.08
+  const strokeLength = (percent / 100) * circumference
+  return `${strokeLength} ${circumference}`
+}
+
+const getStrokeDashOffset = (startPercent: number) => {
+  const circumference = 2 * Math.PI * 25
+  return -((startPercent / 100) * circumference)
 }
 </script>
 
@@ -79,27 +123,61 @@ const formatDuration = (sec?: number) => {
         </div>
       </div>
 
-      <!-- Top Vulnerability Types -->
+      <!-- 나의 취약 피싱 유형 Donut Chart & Legend (가계부 레퍼런스 스타일 완벽 이식) -->
       <div class="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.02)]">
         <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">
           나의 취약 피싱 유형 TOP 3
         </h3>
         
-        <div class="space-y-4">
+        <!-- 도넛 차트 영역 -->
+        <div class="relative flex justify-center items-center my-4 py-2">
+          <svg viewBox="0 0 100 100" class="w-40 h-40 transform -rotate-90">
+            <circle cx="50" cy="50" r="19" fill="white" />
+            <circle
+              v-for="(seg, idx) in segments"
+              :key="idx"
+              cx="50"
+              cy="50"
+              r="25"
+              fill="transparent"
+              :stroke="seg.percent > 0 ? seg.color : '#f1f5f9'"
+              stroke-width="10"
+              :stroke-dasharray="getStrokeDashArray(seg.percent)"
+              :stroke-dashoffset="getStrokeDashOffset(seg.startPercent)"
+              class="transition-all duration-500"
+            />
+          </svg>
+          
+          <!-- 도넛 우측 상단 겹침 뱃지 (가계부 운동 30% 뱃지 스타일 모사) -->
           <div 
-            v-for="(v, idx) in store.report.topVulnerabilities" 
-            :key="idx"
-            class="space-y-2"
+            v-if="highlightSegment"
+            class="absolute top-[8%] right-[18%] bg-white rounded-full px-3 py-2 shadow-[0_6px_16px_rgba(0,0,0,0.06)] border border-slate-100 flex flex-col items-center justify-center min-w-[72px]"
           >
-            <div class="flex justify-between text-xs font-bold">
-              <span class="text-slate-700">{{ idx + 1 }}. {{ v.type }}</span>
-              <span class="text-slate-500">{{ v.score }}점</span>
+            <span class="text-[9px] font-bold text-slate-400">최대 취약</span>
+            <span class="text-[12px] font-black mt-0.5" :style="{ color: highlightSegment.color }">
+              {{ highlightSegment.percent }}%
+            </span>
+          </div>
+        </div>
+
+        <div class="border-t border-slate-100 my-2"></div>
+
+        <!-- 가계부 스타일 범례 리스트 -->
+        <div class="space-y-3 pt-1">
+          <div 
+            v-for="(seg, idx) in segments" 
+            :key="idx"
+            class="flex justify-between items-center text-xs font-semibold text-slate-700 hover:bg-slate-50/50 p-2.5 rounded-xl transition-all cursor-pointer"
+          >
+            <div class="flex items-center gap-2.5">
+              <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: seg.color }"></span>
+              <span class="text-slate-800 font-bold">{{ idx + 1 }}. {{ seg.name }}</span>
             </div>
-            <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-              <div 
-                class="bg-blue-600 h-full rounded-full" 
-                :style="{ width: `${v.score}%` }"
-              ></div>
+            <div class="flex items-center gap-1 text-slate-900 font-extrabold">
+              <span>{{ seg.score }}점</span>
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 stroke-slate-400 fill-none stroke-[2]" viewBox="0 0 24 24">
+                <path d="M9 5l7 7-7 7"/>
+              </svg>
             </div>
           </div>
         </div>

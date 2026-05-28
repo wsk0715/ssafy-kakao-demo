@@ -28,17 +28,16 @@ const emit = defineEmits<{
 
 const activeTab = ref('analysis')
 
-// 주저리주저리 긴 DB 설명문을 걷어내고, 등급별로 1줄로 떨어지는 초간결 안심 분석 멘트 매핑
-const compactExplanationMap: Record<string, string> = {
-  SAFE: '피싱 의심 징후를 조기에 감지하고 통화를 종료하여 자산 피해를 성공적으로 차단했습니다.',
-  WARNING: '통화를 중단했으나, 의심 멘트 노출 시간이 다소 길어 차단 지연 우려가 있습니다.',
-  CRITICAL: '최종 이체 및 정보 강요 단계까지 통화가 유지되어 피싱 피해에 극도로 노출되었습니다.'
+const formatDuration = (sec: number) => {
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-const compactFeedbackMap: Record<string, string> = {
-  SAFE: '수사기관/금융사는 전화상으로 돈이나 정보를 요구하지 않습니다. 즉시 끊는 대처가 가장 안전합니다.',
-  WARNING: '기관 사칭이나 금전 권유 낌새가 보이는 즉시 전화를 바로 끊는 습관을 기르십시오.',
-  CRITICAL: '전화상으로 임시 가상계좌 송금이나 보안 입력을 요구하면 100% 사기이므로 즉시 끊으십시오.'
+const compactExplanationMap: Record<string, string> = {
+  SAFE: '피싱 의심 징후를 조기에 감지하고 통화를 종료하였습니다.',
+  WARNING: '통화는 중단했으나, 의심 멘트 노출 시간이 다소 지연되었습니다.',
+  CRITICAL: '이체 및 정보 강요 단계까지 통화가 유지되어 피싱 위험에 극도로 노출되었습니다.'
 }
 </script>
 
@@ -46,7 +45,7 @@ const compactFeedbackMap: Record<string, string> = {
   <div class="flex-1 flex flex-col justify-between py-6 px-5 overflow-hidden animate-fade-in text-slate-800 bg-white h-full font-sans">
     
     <!-- 상단 등급 및 멘트 영역 -->
-    <div class="text-left mb-4 mt-2 px-1 pb-4 border-b border-slate-100">
+    <div class="text-left mb-3 mt-1 px-1 pb-3">
       <div v-if="activeAnalysis.vulnerabilityStatus === 'SAFE'" class="space-y-1">
         <div class="flex items-center gap-2">
           <h2 class="text-[22px] font-black tracking-tight text-slate-900">피싱 대처 결과</h2>
@@ -70,14 +69,14 @@ const compactFeedbackMap: Record<string, string> = {
       </div>
     </div>
 
-    <!-- 최상단 전환 탭 메뉴 -->
+    <!-- 최상단 전환 탭 메뉴 (보라파란색 테마 매칭) -->
     <div class="flex items-center justify-start gap-6 pb-2 px-1 border-b border-slate-100">
       <button 
         @click="activeTab = 'analysis'"
         :class="[
           'text-[14.5px] font-bold transition-all pb-2 px-1 relative focus:outline-none tracking-tight',
           activeTab === 'analysis' 
-            ? 'text-blue-600 font-extrabold after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[3px] after:bg-blue-600 after:rounded-full' 
+            ? 'text-[#4a5fec] font-extrabold after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[3px] after:bg-[#4a5fec] after:rounded-full' 
             : 'text-slate-400 hover:text-slate-700'
         ]"
       >
@@ -88,22 +87,22 @@ const compactFeedbackMap: Record<string, string> = {
         :class="[
           'text-[14.5px] font-bold transition-all pb-2 px-1 relative focus:outline-none tracking-tight',
           activeTab === 'guide' 
-            ? 'text-blue-600 font-extrabold after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[3px] after:bg-blue-600 after:rounded-full' 
+            ? 'text-[#4a5fec] font-extrabold after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[3px] after:bg-[#4a5fec] after:rounded-full' 
             : 'text-slate-400 hover:text-slate-700'
         ]"
       >
-        대응 가이드
+        상세 진단
       </button>
     </div>
 
-    <!-- 내용 스크롤 영역 (개별 요소의 카드화 모듈 구조) -->
-    <div class="flex-1 overflow-y-auto pr-1 text-xs scroll-container mt-4 px-1 space-y-4">
+    <!-- 내용 스크롤 영역 -->
+    <div class="flex-1 overflow-y-auto overflow-x-hidden pr-1 scroll-container mt-4 px-1">
       
       <!-- TAB 1: 취약점 분석 -->
-      <div v-if="activeTab === 'analysis'" class="space-y-4 animate-fade-in">
+      <div v-if="activeTab === 'analysis'" class="space-y-4 animate-fade-in text-left pb-4">
         
         <!-- CARD A: 잘 대처했어요 / 주의가 필요해요 대비 목록 -->
-        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4.5 text-left space-y-4">
+        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4.5 space-y-4">
           <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">훈련 행동 정밀 진단</p>
           
           <!-- 1. 잘 대처했어요 -->
@@ -166,16 +165,16 @@ const compactFeedbackMap: Record<string, string> = {
           </div>
         </div>
 
-        <!-- CARD B: 종합 평가 소견 (초간결 매핑 출력) -->
-        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4.5 text-left space-y-1">
+        <!-- CARD B: 종합 평가 소견 -->
+        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4.5 space-y-1">
           <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">진단 소견</p>
-          <p class="text-slate-650 leading-relaxed font-bold text-[12px]">
+          <p class="text-slate-600 leading-relaxed font-bold text-[12px]">
             {{ compactExplanationMap[activeAnalysis.vulnerabilityStatus] || activeAnalysis.vulnerabilityExplanation }}
           </p>
         </div>
 
         <!-- CARD C: 시나리오 진행 흐름 타임라인 -->
-        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4.5 text-left space-y-3">
+        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4.5 space-y-3">
           <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-0.5">시나리오 진행 흐름</p>
           
           <div class="relative pl-4 space-y-3 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200">
@@ -210,74 +209,123 @@ const compactFeedbackMap: Record<string, string> = {
         </div>
       </div>
 
-      <!-- TAB 2: 안전 대응 가이드 -->
-      <div v-else-if="activeTab === 'guide'" class="space-y-4 animate-fade-in mt-1">
-        
-        <!-- CARD A: 피해 예방 수칙 -->
-        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4.5 text-left space-y-3">
-          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-0.5">피해 예방 수칙</p>
-          
-          <div class="space-y-2.5">
-            <div class="bg-white border border-slate-150/40 rounded-xl p-4 flex gap-4 items-center shadow-3xs">
-              <span class="text-2xl font-black text-blue-600/80 leading-none">01</span>
-              <span class="text-xs text-slate-800 font-bold leading-tight">의심 전화 즉시 끊기</span>
-            </div>
-            
-            <div class="bg-white border border-slate-150/40 rounded-xl p-4 flex gap-4 items-center shadow-3xs">
-              <span class="text-2xl font-black text-blue-600/80 leading-none">02</span>
-              <span class="text-xs text-slate-800 font-bold leading-tight">출처 불명 앱/링크 설치 금지</span>
-            </div>
-            
-            <div class="bg-white border border-slate-150/40 rounded-xl p-4 flex gap-4 items-center shadow-3xs">
-              <span class="text-2xl font-black text-blue-600/80 leading-none">03</span>
-              <span class="text-xs text-slate-800 font-bold leading-tight">공식 대표 번호 체크</span>
-            </div>
-          </div>
-        </div>
+      <!-- TAB 2: 상세 진단 내역 -->
+      <div v-else-if="activeTab === 'guide'" class="space-y-4 animate-fade-in text-left pb-4">
 
-        <!-- CARD B: 훈련 총평 (초간결 매핑 출력) -->
-        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4.5 text-left space-y-1">
-          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">훈련 총평</p>
-          <p class="text-slate-650 leading-relaxed font-bold text-[12px]">
-            {{ compactFeedbackMap[activeAnalysis.vulnerabilityStatus] || activeAnalysis.feedback }}
+        <!-- CARD: 취약 진단 등급 -->
+        <div
+          :class="[
+            'rounded-2xl p-4 text-center space-y-1 border',
+            activeAnalysis.vulnerabilityStatus === 'SAFE'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+              : activeAnalysis.vulnerabilityStatus === 'WARNING'
+              ? 'bg-amber-50 border-amber-200 text-amber-700'
+              : 'bg-rose-50 border-rose-200 text-rose-700'
+          ]"
+        >
+          <p class="text-[10px] font-black uppercase tracking-wider">취약 진단 등급</p>
+          <p class="text-[15px] font-extrabold mt-1">
+            {{
+              activeAnalysis.vulnerabilityStatus === 'SAFE' ? '안전 (즉각 회피)' :
+              activeAnalysis.vulnerabilityStatus === 'WARNING' ? '주의 (경고 노출)' :
+              '위험 (금전 피해 고위험)'
+            }}
+          </p>
+          <p class="text-[11px] font-semibold opacity-80 mt-0.5">
+            {{ activeAnalysis.hangUpStepName }}에서 통화 종료
           </p>
         </div>
 
-        <!-- CARD C: 피해 신고처 -->
-        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4.5 text-left space-y-3">
-          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-0.5">피해 신고처</p>
-          <div class="bg-white border border-slate-150/40 rounded-xl p-4 space-y-3 shadow-3xs">
-            
-            <div class="flex justify-between items-center text-slate-500 font-bold text-xs">
-              <span>경찰청 (피해 신고)</span>
-              <a href="tel:112" class="bg-slate-50 border border-slate-250/30 text-blue-600 font-black px-3.5 py-1.5 rounded-xl hover:bg-slate-100 active:scale-95 transition-all shadow-3xs">
-                112
-              </a>
-            </div>
-            
-            <div class="flex justify-between items-center text-slate-500 font-bold text-xs pt-2.5 border-t border-slate-100">
-              <span>금융감독원 (피해 상담)</span>
-              <a href="tel:1332" class="bg-slate-50 border border-slate-250/30 text-blue-600 font-black px-3.5 py-1.5 rounded-xl hover:bg-slate-100 active:scale-95 transition-all shadow-3xs">
-                1332
-              </a>
-            </div>
-            
-            <div class="flex justify-between items-center text-slate-500 font-bold text-xs pt-2.5 border-t border-slate-100">
-              <span>KISA (스팸 제보)</span>
-              <a href="tel:118" class="bg-slate-50 border border-slate-250/30 text-blue-600 font-black px-3.5 py-1.5 rounded-xl hover:bg-slate-100 active:scale-95 transition-all shadow-3xs">
-                118
-              </a>
-            </div>
-
+        <!-- CARD: 시나리오 정보 -->
+        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4 space-y-2">
+          <div class="flex justify-between items-center">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">훈련 시나리오</p>
+            <span class="text-[10px] font-bold text-slate-400">{{ activeAnalysis.date }}</span>
+          </div>
+          <h4 class="text-[13px] font-extrabold text-slate-800 leading-snug">{{ activeAnalysis.scenarioTitle?.replace('\n', ' ') }}</h4>
+          <div class="flex items-center gap-1.5 text-[11px] text-slate-500 font-bold mt-0.5">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 12"/>
+            </svg>
+            <span>통화 지속 시간: {{ formatDuration(activeAnalysis.duration) }}분</span>
           </div>
         </div>
+
+        <!-- CARD: 취약점 분석 -->
+        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4 space-y-2">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">취약점 분석</p>
+          <p class="text-[12px] text-slate-600 leading-relaxed font-bold">
+            {{ compactExplanationMap[activeAnalysis.vulnerabilityStatus] || activeAnalysis.vulnerabilityExplanation }}
+          </p>
+        </div>
+
+        <!-- CARD: 피드백 및 대처 조언 -->
+        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4 space-y-3">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">대처 조언</p>
+          <p class="text-[12px] text-slate-600 leading-relaxed font-bold">{{ activeAnalysis.feedback }}</p>
+          <div class="border-t border-slate-200/60 pt-3 space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-[11px] text-slate-500 font-bold">피해 신고 접수 (경찰청)</span>
+              <span class="text-[11px] text-[#4a5fec] font-extrabold">☎ 112</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-[11px] text-slate-500 font-bold">피해 상담 환급 (금감원)</span>
+              <span class="text-[11px] text-[#4a5fec] font-extrabold">☎ 1332</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-[11px] text-slate-500 font-bold">스팸/번호도용 제보 (KISA)</span>
+              <span class="text-[11px] text-[#4a5fec] font-extrabold">☎ 118</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD: 피싱 수법 단계별 타임라인 -->
+        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4 space-y-3">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">보이스피싱 수법 단계 분석</p>
+          <div class="space-y-2">
+            <div
+              v-for="(tech, tIdx) in activeAnalysis.techniques"
+              :key="tIdx"
+              :class="[
+                'p-3 rounded-xl border transition-all text-left flex gap-3 shadow-3xs',
+                tIdx === activeAnalysis.hangUpStepIndex
+                  ? 'bg-white border-blue-200 ring-1 ring-blue-100 text-slate-800'
+                  : 'bg-white/70 border-slate-150/40 opacity-55 text-slate-500'
+              ]"
+            >
+              <div
+                :class="[
+                  'w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black flex-shrink-0 mt-0.5',
+                  tIdx === activeAnalysis.hangUpStepIndex ? 'bg-[#4a5fec] text-white' : 'bg-slate-200 text-slate-500'
+                ]"
+              >
+                {{ tIdx + 1 }}
+              </div>
+              <div class="space-y-0.5">
+                <div class="flex items-center gap-1.5">
+                  <h6 class="font-bold text-xs" :class="tIdx === activeAnalysis.hangUpStepIndex ? 'text-slate-800' : 'text-slate-500'">
+                    {{ tech.name }}
+                  </h6>
+                  <span v-if="tIdx === activeAnalysis.hangUpStepIndex" class="text-[9px] bg-[#4a5fec] text-white font-extrabold px-1.5 py-0.5 rounded-md">
+                    종료 지점
+                  </span>
+                </div>
+                <p class="text-[11px] leading-normal" :class="tIdx === activeAnalysis.hangUpStepIndex ? 'text-slate-600' : 'text-slate-400'">
+                  {{ tech.desc }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
     <!-- Confirm Button -->
     <button 
       @click="emit('close')"
-      class="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.99] transition-all text-white font-extrabold text-sm py-4 px-4 rounded-2xl shadow-[0_6px_24px_rgba(37,99,235,0.15)] focus:outline-none tracking-tight mt-4"
+      class="w-full bg-[#4a5fec] hover:bg-[#394dcd] active:scale-[0.99] transition-all text-white font-extrabold text-sm py-4.5 px-4 rounded-2xl shadow-[0_8px_30px_rgba(74,95,236,0.18)] focus:outline-none tracking-tight mt-4"
     >
       리포트 닫기 및 훈련 종료
     </button>
