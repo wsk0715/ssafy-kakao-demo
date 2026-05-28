@@ -1,4 +1,4 @@
-package com.example.demo_app.calls;
+package com.example.demo_app.domain.calls;
 
 import com.example.demo_app.api.dto.ProgressReport;
 import io.swagger.v3.oas.annotations.Operation;

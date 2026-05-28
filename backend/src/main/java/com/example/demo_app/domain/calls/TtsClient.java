@@ -1,4 +1,4 @@
-package com.example.demo_app.calls;
+package com.example.demo_app.domain.calls;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
