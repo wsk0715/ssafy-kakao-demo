@@ -168,7 +168,7 @@ const handleRecentApps = () => {
           <button 
             @click="emit('tabChange', 'profiling')"
             :class="[
-              'flex flex-col items-center gap-1 transition-all duration-200 active:scale-[0.98]',
+              'flex-1 flex flex-col items-center gap-1 transition-all duration-200 active:scale-[0.98]',
               activeTab === 'profiling' ? 'text-blue-600 font-bold' : 'text-slate-400 hover:text-slate-600'
             ]"
           >
@@ -183,7 +183,7 @@ const handleRecentApps = () => {
           <button 
             @click="emit('tabChange', 'response')"
             :class="[
-              'flex flex-col items-center gap-1 transition-all duration-200 active:scale-[0.98]',
+              'flex-1 flex flex-col items-center gap-1 transition-all duration-200 active:scale-[0.98]',
               activeTab === 'response' ? 'text-blue-600 font-bold' : 'text-slate-400 hover:text-slate-600'
             ]"
           >
@@ -197,7 +197,7 @@ const handleRecentApps = () => {
           <button 
             @click="emit('tabChange', 'report')"
             :class="[
-              'flex flex-col items-center gap-1 transition-all duration-200 active:scale-[0.98]',
+              'flex-1 flex flex-col items-center gap-1 transition-all duration-200 active:scale-[0.98]',
               activeTab === 'report' ? 'text-blue-600 font-bold' : 'text-slate-400 hover:text-slate-600'
             ]"
           >
