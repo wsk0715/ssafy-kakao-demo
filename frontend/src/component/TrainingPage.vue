@@ -120,6 +120,7 @@ const submitDesktopTextInput = async () => {
     console.log('[SSE LLM Desktop Complete]:', data)
     
     const [status, fullText] = data.split('|')
+    console.log('[SSE LLM Desktop Complete] status:', status, 'fullText length:', fullText ? fullText.length : 0)
     es.close()
     
     if (desktopResponseEventSource === es) {

@@ -539,6 +539,7 @@ const recordSuccessHangUp = async (stepIndex: number) => {
   callConnectionService.reportProgress('IDLE', stepIndex)
 }
 
+/*
 const recordFailedCall = async () => {
   const scenario = store.activeScenario
   if (!scenario) return
@@ -625,6 +626,7 @@ const recordFailedCall = async () => {
   store.setSimStatus('CALL_REPORT')
   callConnectionService.reportProgress('WARNING_SCREEN', stepIndex)
 }
+*/
 
 onMounted(() => {
   initSTT()
@@ -714,7 +716,7 @@ const closeReport = () => {
   <Transition name="slide-up">
     <div 
       v-if="store.simStatus === 'RINGING' || store.simStatus === 'CONNECTED' || store.simStatus === 'CALL_REPORT'" 
-      :class="['absolute inset-0 z-50 flex flex-col select-none overflow-hidden transition-colors duration-300', store.simStatus === 'CALL_REPORT' ? 'bg-white text-slate-800' : 'bg-slate-950 text-white']"
+      :class="['absolute inset-x-0 top-[28px] bottom-[40px] z-25 flex flex-col select-none overflow-hidden transition-colors duration-300', store.simStatus === 'CALL_REPORT' ? 'bg-white text-slate-800' : 'bg-slate-950 text-white']"
     >
       <!-- A. RINGING STATE -->
       <div v-if="store.simStatus === 'RINGING' && store.activeScenario" class="flex-1 flex flex-col justify-between py-6 xs:py-12 px-6 animate-fade-in">
