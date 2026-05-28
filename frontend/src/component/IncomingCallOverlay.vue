@@ -834,134 +834,151 @@ const closeReport = () => {
         </div>
       </div>
 
-      <!-- B. CONNECTED ACTIVE CALL STATE -->
-      <div v-else-if="store.simStatus === 'CONNECTED' && store.activeScenario" class="flex-1 flex flex-col justify-between py-6 xs:py-12 px-6 animate-fade-in">
-        
-        <!-- Active Call Header -->
-        <div class="text-center mt-6 xs:mt-12 space-y-1">
-          <h2 class="text-2xl xs:text-3xl font-bold tracking-tight text-white">
-            {{ parsedCaller.name }}
-          </h2>
-          <p class="text-xs text-white/60 font-medium">
-            {{ parsedCaller.phone }}
-          </p>
-          <p class="text-sm text-emerald-400 font-extrabold tracking-widest mt-1 uppercase">
-            {{ formatDuration(duration) }}
-          </p>
-        </div>
+      <!-- B. CONNECTED ACTIVE CALL STATE (갤럭시 One UI 통화 중 화면 테마) -->
+      <div 
+        v-else-if="store.simStatus === 'CONNECTED' && store.activeScenario" 
+        class="flex-1 flex flex-col justify-between py-8 px-6 animate-fade-in text-white relative overflow-hidden bg-gradient-to-b from-[#1c1221] via-[#232145] to-[#45372f] h-full"
+      >
+        <!-- 부드러운 오로라 블러 배경 장식 -->
+        <div class="absolute -top-10 -left-10 w-48 h-48 bg-purple-600/25 rounded-full filter blur-3xl z-0"></div>
+        <div class="absolute -bottom-10 -right-10 w-48 h-48 bg-orange-600/15 rounded-full filter blur-3xl z-0"></div>
+        <div class="absolute bottom-1/3 left-10 w-40 h-40 bg-blue-600/20 rounded-full filter blur-3xl z-0"></div>
 
-        <!-- Live Caption Banner (iOS style semi-transparent card) -->
-        <div v-if="currentVoiceStep && false" class="w-full max-w-xs mx-auto bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl p-4 my-2 text-left space-y-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.37)] animate-fade-in">
-          <div class="flex items-center gap-1.5">
-            <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
-            <span class="text-[9px] font-extrabold text-blue-400 uppercase tracking-widest">실시간 통화 자막 피드</span>
+        <div class="z-10 flex-1 flex flex-col justify-between h-full">
+          <!-- Active Call Header -->
+          <div class="text-center mt-10 space-y-1">
+            <h2 class="text-3xl font-bold tracking-tight text-white leading-tight">
+              {{ parsedCaller.name }}
+            </h2>
+            <p class="text-sm text-white/80 font-medium pt-1">
+              휴대전화 {{ parsedCaller.phone }}
+            </p>
+            <p class="text-sm text-[#00d69b] font-bold tracking-widest mt-2">
+              {{ formatDuration(duration) }}
+            </p>
           </div>
-          <p class="text-xs font-semibold text-slate-100 leading-relaxed">
-            "{{ currentVoiceStep?.dialogue }}"
-          </p>
-        </div>
 
-        <!-- User Voice Input & Recognition Feed -->
-        <div v-if="false && (isListening || userSpokenText)" class="w-full max-w-xs mx-auto bg-emerald-500/10 backdrop-blur-md border border-emerald-500/20 rounded-2xl p-4 my-2 text-left space-y-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.15)] animate-fade-in">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-1.5">
-              <span class="relative flex h-2 w-2">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span class="text-[9px] font-extrabold text-emerald-400 uppercase tracking-widest">내 음성 실시간 인식</span>
+          <!-- Real-time Text Interaction Input -->
+          <div v-if="currentVoiceStep" class="w-full max-w-xs mx-auto my-3 space-y-2">
+            <p class="text-[10px] text-white/60 font-semibold tracking-wider text-center">
+              💬 답변 입력 (텍스트로 대화하기)
+            </p>
+            <div class="flex items-center gap-2 bg-white/10 backdrop-blur-lg border border-white/10 rounded-2xl p-1.5 px-3 shadow-xs">
+              <input 
+                v-model="textInput"
+                @keyup.enter="submitTextInput"
+                type="text" 
+                placeholder="대답을 입력하세요..." 
+                class="flex-1 bg-transparent text-xs text-white placeholder-white/50 focus:outline-none py-1.5 px-1"
+              />
+              <button 
+                @click="submitTextInput"
+                class="bg-[#00d69b] hover:bg-[#00c28d] active:scale-95 text-white text-[11px] font-bold py-1.5 px-3.5 rounded-xl transition-all shadow-xs"
+              >
+                전송
+              </button>
             </div>
-            <span class="text-[9px] text-emerald-300/80 font-bold bg-emerald-500/20 px-1.5 py-0.5 rounded">
-              {{ isListening ? '마이크 켜짐' : '인식 완료' }}
-            </span>
           </div>
-          <p class="text-xs font-semibold text-emerald-100 leading-relaxed italic">
-            {{ userSpokenText || '대답을 기다리는 중...' }}
-          </p>
-        </div>
 
-        <!-- Real-time Text Interaction Input -->
-        <div v-if="currentVoiceStep" class="w-full max-w-xs mx-auto my-3 space-y-2 animate-fade-in">
-          <p class="text-[10px] text-slate-400 font-extrabold tracking-wider text-center uppercase">
-            💬 답변 입력 (텍스트로 대화하기)
-          </p>
-          <div class="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl p-1.5 px-3 shadow-[0_4px_30px_rgba(0,0,0,0.1)]">
-            <input 
-              v-model="textInput"
-              @keyup.enter="submitTextInput"
-              type="text" 
-              placeholder="대답을 입력하세요..." 
-              class="flex-1 bg-transparent text-xs text-white placeholder-slate-400 focus:outline-none py-1.5 px-1"
-            />
-            <button 
-              @click="submitTextInput"
-              class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-[11px] font-bold py-1.5 px-3.5 rounded-xl transition-all"
-            >
-              전송
-            </button>
+          <!-- 6 Grid Control Actions (갤럭시 One UI 스타일) -->
+          <div class="grid grid-cols-3 gap-y-4 gap-x-2 max-w-xs mx-auto my-auto text-center">
+            
+            <!-- 1. 내 소리 차단 -->
+            <div class="flex flex-col items-center gap-1.5">
+              <button 
+                @click="toggleMute" 
+                :class="[
+                  'w-[72px] h-[72px] rounded-full flex items-center justify-center transition-all duration-200 active:scale-95',
+                  isMutedLocal ? 'bg-white text-slate-900 shadow-md' : 'bg-white/10 hover:bg-white/15 text-white'
+                ]"
+              >
+                <!-- Mute Icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 fill-current" viewBox="0 0 24 24">
+                  <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+                </svg>
+              </button>
+              <span class="text-xs font-semibold text-white/80">마이크</span>
+            </div>
+
+            <!-- 2. 키패드 -->
+            <div class="flex flex-col items-center gap-1.5">
+              <button class="w-[72px] h-[72px] rounded-full bg-white/10 hover:bg-white/15 flex items-center justify-center text-white opacity-40 cursor-not-allowed">
+                <!-- Keypad Icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 fill-current" viewBox="0 0 24 24">
+                  <circle cx="6" cy="5" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="18" cy="5" r="2"/>
+                  <circle cx="6" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="18" cy="12" r="2"/>
+                  <circle cx="6" cy="19" r="2"/><circle cx="12" cy="19" r="2"/><circle cx="18" cy="19" r="2"/>
+                </svg>
+              </button>
+              <span class="text-xs font-semibold text-white/80">키패드</span>
+            </div>
+
+            <!-- 3. 스피커 -->
+            <div class="flex flex-col items-center gap-1.5">
+              <button 
+                @click="toggleSpeaker" 
+                :class="[
+                  'w-[72px] h-[72px] rounded-full flex items-center justify-center transition-all duration-200 active:scale-95',
+                  isSpeakerOn ? 'bg-white text-slate-900 shadow-md' : 'bg-white/10 hover:bg-white/15 text-white'
+                ]"
+              >
+                <!-- Speaker Icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 fill-current" viewBox="0 0 24 24">
+                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                </svg>
+              </button>
+              <span class="text-xs font-semibold text-white/80">스피커</span>
+            </div>
+
+            <!-- 4. 녹음 -->
+            <div class="flex flex-col items-center gap-1.5">
+              <button class="w-[72px] h-[72px] rounded-full bg-white/10 hover:bg-white/15 flex items-center justify-center text-white opacity-40 cursor-not-allowed">
+                <!-- Record Icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 fill-current" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
+                  <circle cx="12" cy="12" r="5"/>
+                </svg>
+              </button>
+              <span class="text-xs font-semibold text-white/80">녹음</span>
+            </div>
+
+            <!-- 5. 블루투스 -->
+            <div class="flex flex-col items-center gap-1.5">
+              <button class="w-[72px] h-[72px] rounded-full bg-white/10 hover:bg-white/15 flex items-center justify-center text-white opacity-40 cursor-not-allowed">
+                <!-- Bluetooth Icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 fill-current" viewBox="0 0 24 24">
+                  <path d="M17.71 7.71L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm0 12.34v-3.76l1.88 1.88L13 18.17z"/>
+                </svg>
+              </button>
+              <span class="text-xs font-semibold text-white/80">블루투스</span>
+            </div>
+
+            <!-- 6. 영상통화 -->
+            <div class="flex flex-col items-center gap-1.5">
+              <button class="w-[72px] h-[72px] rounded-full bg-white/10 hover:bg-white/15 flex items-center justify-center text-white opacity-40 cursor-not-allowed">
+                <!-- Video Call Icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 fill-current" viewBox="0 0 24 24">
+                  <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+                </svg>
+              </button>
+              <span class="text-xs font-semibold text-white/80">영상통화</span>
+            </div>
           </div>
-        </div>
 
-        <!-- Phone Grid Actions (Mock iOS Style) -->
-        <div class="grid grid-cols-3 gap-y-4 xs:gap-y-8 gap-x-4 xs:gap-x-8 max-w-xs mx-auto my-auto text-center">
-          <button @click="toggleMute" :class="['flex flex-col items-center justify-center w-16 h-16 xs:w-20 xs:h-20 mx-auto rounded-full transition-all', isMutedLocal ? 'bg-white text-slate-950 shadow-lg' : 'bg-white/10 hover:bg-white/20 text-white']">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 xs:w-7 xs:h-7 fill-current" viewBox="0 0 24 24">
-              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
-            </svg>
-            <span class="text-[11px] xs:text-[13px] font-bold mt-1">소리 끔</span>
-          </button>
-          <button class="flex flex-col items-center justify-center w-16 h-16 xs:w-20 xs:h-20 mx-auto bg-white/10 hover:bg-white/20 text-white rounded-full opacity-40 cursor-not-allowed">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 xs:w-7 xs:h-7 fill-current" viewBox="0 0 24 24">
-              <circle cx="6" cy="5" r="2"/>
-              <circle cx="12" cy="5" r="2"/>
-              <circle cx="18" cy="5" r="2"/>
-              <circle cx="6" cy="12" r="2"/>
-              <circle cx="12" cy="12" r="2"/>
-              <circle cx="18" cy="12" r="2"/>
-              <circle cx="6" cy="19" r="2"/>
-              <circle cx="12" cy="19" r="2"/>
-              <circle cx="18" cy="19" r="2"/>
-            </svg>
-            <span class="text-[11px] xs:text-[13px] font-bold mt-1">키패드</span>
-          </button>
-          <button @click="toggleSpeaker" :class="['flex flex-col items-center justify-center w-16 h-16 xs:w-20 xs:h-20 mx-auto rounded-full transition-all', isSpeakerOn ? 'bg-white text-slate-950 shadow-lg' : 'bg-white/10 hover:bg-white/20 text-white']">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 xs:w-7 xs:h-7 fill-current" viewBox="0 0 24 24">
-              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-            </svg>
-            <span class="text-[11px] xs:text-[13px] font-bold mt-1">스피커</span>
-          </button>
-          <button class="flex flex-col items-center justify-center w-16 h-16 xs:w-20 xs:h-20 mx-auto bg-white/10 hover:bg-white/20 text-white rounded-full opacity-40 cursor-not-allowed">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 xs:w-7 xs:h-7 fill-current" viewBox="0 0 24 24">
-              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-            </svg>
-            <span class="text-[11px] xs:text-[13px] font-bold mt-1">통화 추가</span>
-          </button>
-          <button class="flex flex-col items-center justify-center w-16 h-16 xs:w-20 xs:h-20 mx-auto bg-white/10 hover:bg-white/20 text-white rounded-full opacity-40 cursor-not-allowed">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 xs:w-7 xs:h-7 fill-current" viewBox="0 0 24 24">
-              <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
-            </svg>
-            <span class="text-[11px] xs:text-[13px] font-bold mt-1">FaceTime</span>
-          </button>
-          <button class="flex flex-col items-center justify-center w-16 h-16 xs:w-20 xs:h-20 mx-auto bg-white/10 hover:bg-white/20 text-white rounded-full opacity-40 cursor-not-allowed">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 xs:w-7 xs:h-7 fill-current" viewBox="0 0 24 24">
-              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-            </svg>
-            <span class="text-[11px] xs:text-[13px] font-bold mt-1">연락처</span>
-          </button>
-        </div>
-
-        <!-- Hang Up Button -->
-        <div class="flex flex-col items-center mb-4 xs:mb-8">
-          <button 
-            @click="handleDecline"
-            class="w-16 h-16 xs:w-20 xs:h-20 rounded-full bg-rose-600 hover:bg-rose-500 flex items-center justify-center text-2xl xs:text-3xl shadow-[0_4px_25px_rgba(225,29,72,0.5)] transition-all active:scale-90"
-          >
-            <!-- Decline Phone Icon -->
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 xs:w-8 xs:h-8 fill-white rotate-[135deg]" viewBox="0 0 24 24">
-              <path d="M21 16.5c0 .38-.21.71-.53.88l-4.87 2.44c-.38.19-.85.12-1.15-.18l-3.38-3.38c-.3-.3-.37-.77-.18-1.15l2.44-4.87c.17-.32.5-.53.88-.53h4.75c.55 0 1 .45 1 1v5.74zM3 7.5c0-.55.45-1 1-1h4.75c.38 0 .71.21.88.53l2.44 4.87c.19.38.12.85-.18 1.15l-3.38 3.38c-.3.3-.77.37-1.15.18L4.53 14c-.32-.17-.53-.5-.53-.88V7.5z"/>
-            </svg>
-          </button>
-          <span class="text-xs xs:text-sm text-slate-300 font-bold mt-2">통화 종료</span>
+          <!-- Hang Up Button (Decline, 갤럭시 수평 엎어진 수화기) -->
+          <div class="flex flex-col items-center mb-6">
+            <div class="p-1.5 bg-white/5 border border-white/5 rounded-full shadow-inner">
+              <button 
+                @click="handleDecline"
+                class="w-16 h-16 rounded-full bg-[#ff5b5b] hover:bg-[#eb5252] flex items-center justify-center shadow-lg transition-all duration-150 active:scale-90"
+              >
+                <!-- Decline Phone Icon (수신 수화기를 rotate-[135deg] 회전시켜 엎어놓은 형태) -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24">
+                  <path d="M20 15.5c-1.25 0-2.45-.2-3.57-.57a1.02 1.02 0 0 0-1.02.24l-2.2 2.2a15.045 15.045 0 0 1-6.59-6.59l2.2-2.2c.28-.28.36-.67.25-1.02A11.36 11.36 0 0 1 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
 
       </div>
