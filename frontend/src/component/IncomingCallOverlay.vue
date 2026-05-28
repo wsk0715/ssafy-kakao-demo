@@ -9,6 +9,37 @@ import { callConnectionService } from '../service/callConnectionService'
 const store = useTrainingStore()
 const reportStore = useReportStore()
 
+// 발신인 데이터 분리 및 사칭 표시 정제 (현실적인 피싱 훈련을 위해)
+const parsedCaller = computed(() => {
+  const sender = store.activeScenario?.sender || ''
+  if (!sender) return { name: '알 수 없음', phone: '010-5851-3110' }
+  
+  const lines = sender.split('\n').map(l => l.trim())
+  let phone = ''
+  let name = ''
+  
+  if (lines.length >= 2) {
+    phone = lines[0] // 예: 02-1301-XXXX
+    name = lines[1]  // 예: (서울중앙지검 사칭)
+  } else {
+    const phonePattern = /^[0-9-X]{7,15}$/i
+    if (phonePattern.test(sender)) {
+      phone = sender
+      name = '알 수 없는 번호'
+    } else {
+      name = sender
+      phone = '010-5851-3110'
+    }
+  }
+  
+  // "(사칭)" 등의 텍스트는 수신 화면에서 가려 피싱 훈련 효과를 극대화
+  if (name.includes('사칭')) {
+    name = name.replace(/\s*\(|\)|사칭/g, '').trim()
+  }
+  
+  return { name, phone }
+})
+
 // Call duration timer
 const duration = ref(0)
 let timerId: any = null
@@ -718,100 +749,103 @@ const closeReport = () => {
       v-if="store.simStatus === 'RINGING' || store.simStatus === 'CONNECTED' || store.simStatus === 'CALL_REPORT'" 
       :class="['absolute inset-x-0 top-[28px] bottom-[40px] z-25 flex flex-col select-none overflow-hidden transition-colors duration-300', store.simStatus === 'CALL_REPORT' ? 'bg-white text-slate-800' : 'bg-slate-950 text-white']"
     >
-      <!-- A. RINGING STATE -->
-      <div v-if="store.simStatus === 'RINGING' && store.activeScenario" class="flex-1 flex flex-col justify-between py-6 xs:py-12 px-6 animate-fade-in">
-        
-        <!-- Caller Info Header -->
-        <div class="text-center mt-6 xs:mt-12 space-y-2 xs:space-y-3">
-          <p class="text-xs xs:text-sm text-blue-400 font-extrabold uppercase tracking-widest animate-pulse">
-            훈련 전화 수신 중
-          </p>
-          <h2 class="text-2xl xs:text-3xl font-black tracking-tight text-white mt-1 whitespace-pre-line">
-            {{ store.activeScenario.sender }}
-          </h2>
-          <p class="text-sm xs:text-base text-slate-300 font-semibold whitespace-pre-line">
-            {{ store.activeScenario.title }}
-          </p>
-        </div>
+      <!-- A. RINGING STATE (갤럭시 One UI 수신 전화 화면 테마) -->
+      <div 
+        v-if="store.simStatus === 'RINGING' && store.activeScenario" 
+        class="flex-1 flex flex-col justify-between py-8 px-6 animate-fade-in text-white relative overflow-hidden bg-gradient-to-b from-[#1c1221] via-[#232145] to-[#45372f] h-full"
+      >
+        <!-- 부드러운 오로라 블러 배경 장식 -->
+        <div class="absolute -top-10 -left-10 w-48 h-48 bg-purple-600/25 rounded-full filter blur-3xl z-0"></div>
+        <div class="absolute -bottom-10 -right-10 w-48 h-48 bg-orange-600/15 rounded-full filter blur-3xl z-0"></div>
+        <div class="absolute bottom-1/3 left-10 w-40 h-40 bg-blue-600/20 rounded-full filter blur-3xl z-0"></div>
 
-        <!-- Pulse Ring Phone Graphic -->
-        <div class="flex items-center justify-center my-4 xs:my-6">
-          <div class="relative flex items-center justify-center w-28 h-28 xs:w-36 xs:h-36">
-            <div class="absolute inset-0 rounded-full bg-blue-500/10 animate-ping duration-1000"></div>
-            <div class="absolute inset-4 rounded-full bg-blue-500/20 animate-pulse"></div>
-            <div class="relative w-14 h-14 xs:w-20 xs:h-20 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center shadow-xl">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 xs:w-9 xs:h-9 fill-slate-100" viewBox="0 0 24 24">
-                <path d="M20 15.5c-1.25 0-2.45-.2-3.57-.57a1.02 1.02 0 0 0-1.02.24l-2.2 2.2a15.045 15.045 0 0 1-6.59-6.59l2.2-2.2c.28-.28.36-.67.25-1.02A11.36 11.36 0 0 1 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/>
-              </svg>
-            </div>
+        <div class="z-10 flex-1 flex flex-col justify-between h-full">
+          <!-- 상단 헤더 정보 -->
+          <div class="text-center mt-10 space-y-1">
+            <p class="text-[11px] font-semibold text-white/70 tracking-widest">
+              수신전화
+            </p>
+            <h2 class="text-3xl font-bold tracking-tight text-white mt-3 leading-tight">
+              {{ parsedCaller.name }}
+            </h2>
+            <p class="text-sm text-white/80 font-medium pt-1">
+              휴대전화 {{ parsedCaller.phone }}
+            </p>
           </div>
-        </div>
 
-        <!-- Ringing Actions -->
-        <div class="flex items-center justify-between w-full px-6 xs:px-14 mb-4 xs:mb-8">
-          <!-- Accept Column (Left) -->
-          <div class="flex flex-col items-center gap-4 xs:gap-6">
-            <!-- Remind Me Button -->
-            <button class="flex flex-col items-center gap-1.5 active:scale-95 transition-all text-slate-400 hover:text-slate-350">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 12" />
+          <!-- 중간 통화 상태 & 통화 어시스트 캡슐 -->
+          <div class="my-auto text-center space-y-5">
+            <div class="flex items-center justify-center gap-1.5 text-[11px] text-white/80 font-medium">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 fill-current rotate-90" viewBox="0 0 24 24">
+                <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.57a.978.978 0 0 0-1.02.24l-2.2 2.2a15.149 15.149 0 0 1-6.59-6.59l2.2-2.2c.28-.28.36-.67.25-1.02A11.36 11.36 0 0 0 8.5 3.99c0-.55-.45-1-1-1H4.01c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.61c0-.55-.45-1-1-1z"/>
               </svg>
-              <span class="text-[10px] font-semibold">나중에 보기</span>
-            </button>
+              <span>마지막 통화: 일요일</span>
+            </div>
 
-            <!-- Accept Button -->
-            <div class="flex flex-col items-center gap-1.5 xs:gap-2">
-              <button 
-                @click="handleAccept"
-                class="w-16 h-16 xs:w-20 xs:h-20 rounded-full bg-emerald-500 hover:bg-emerald-400 flex items-center justify-center text-2xl xs:text-3xl shadow-[0_4px_25px_rgba(16,185,129,0.5)] animate-soft-pulse transition-all active:scale-90"
-              >
-                <!-- Accept Phone Icon -->
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 xs:w-9 xs:h-9 fill-white" viewBox="0 0 24 24">
-                  <path d="M20 15.5c-1.25 0-2.45-.2-3.57-.57a1.02 1.02 0 0 0-1.02.24l-2.2 2.2a15.045 15.045 0 0 1-6.59-6.59l2.2-2.2c.28-.28.36-.67.25-1.02A11.36 11.36 0 0 1 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/>
-                </svg>
-              </button>
-              <span class="text-xs xs:text-sm text-slate-300 font-bold mt-1">응답</span>
+            <!-- 통화 어시스트 캡슐 버튼 (반투명 라운드 뱃지) -->
+            <div class="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-lg border border-white/10 rounded-full px-5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-white/15 transition-all">
+              <span>✨</span>
+              <span>통화 어시스트</span>
             </div>
           </div>
 
-          <!-- Decline Column (Right) -->
-          <div class="flex flex-col items-center gap-4 xs:gap-6">
-            <!-- Message Button -->
-            <button class="flex flex-col items-center gap-1.5 active:scale-95 transition-all text-slate-400 hover:text-slate-350">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-              </svg>
-              <span class="text-[10px] font-semibold">메시지 보내기</span>
-            </button>
+          <!-- 하단 수신/거절 원형 슬라이드 버튼 레이아웃 -->
+          <div class="flex items-center justify-between w-full px-8 mb-6">
+            <!-- 수신 버튼 (Green) -->
+            <div class="flex flex-col items-center gap-2 relative">
+              <div class="p-1.5 bg-white/5 border border-white/5 rounded-full shadow-inner relative flex items-center justify-center">
+                <!-- 은은한 핑(Ping) 효과 레이어 -->
+                <div class="absolute w-16 h-16 rounded-full bg-[#00d69b]/40 animate-ping duration-1000 z-0"></div>
+                
+                <button 
+                  @click="handleAccept"
+                  class="w-16 h-16 rounded-full bg-[#00d69b] hover:bg-[#00c28d] flex items-center justify-center shadow-lg transition-all duration-150 active:scale-90 z-10"
+                >
+                  <!-- Accept Phone Icon -->
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 fill-white" viewBox="0 0 24 24">
+                    <path d="M20 15.5c-1.25 0-2.45-.2-3.57-.57a1.02 1.02 0 0 0-1.02.24l-2.2 2.2a15.045 15.045 0 0 1-6.59-6.59l2.2-2.2c.28-.28.36-.67.25-1.02A11.36 11.36 0 0 1 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
 
-            <!-- Decline Button -->
-            <div class="flex flex-col items-center gap-1.5 xs:gap-2">
-              <button 
-                @click="handleDecline"
-                class="w-16 h-16 xs:w-20 xs:h-20 rounded-full bg-rose-600 hover:bg-rose-500 flex items-center justify-center text-2xl xs:text-3xl shadow-[0_4px_25px_rgba(225,29,72,0.5)] transition-all active:scale-90"
-              >
-                <!-- Decline Phone Icon -->
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 xs:w-9 xs:h-9 fill-white rotate-[135deg]" viewBox="0 0 24 24">
-                  <path d="M21 16.5c0 .38-.21.71-.53.88l-4.87 2.44c-.38.19-.85.12-1.15-.18l-3.38-3.38c-.3-.3-.37-.77-.18-1.15l2.44-4.87c.17-.32.5-.53.88-.53h4.75c.55 0 1 .45 1 1v5.74zM3 7.5c0-.55.45-1 1-1h4.75c.38 0 .71.21.88.53l2.44 4.87c.19.38.12.85-.18 1.15l-3.38 3.38c-.3.3-.77.37-1.15.18L4.53 14c-.32-.17-.53-.5-.53-.88V7.5z"/>
-                </svg>
-              </button>
-              <span class="text-xs xs:text-sm text-slate-300 font-bold mt-1">거절</span>
+            <!-- 거절 버튼 (Red) -->
+            <div class="flex flex-col items-center gap-2">
+              <div class="p-1.5 bg-white/5 border border-white/5 rounded-full shadow-inner">
+                <button 
+                  @click="handleDecline"
+                  class="w-16 h-16 rounded-full bg-[#ff5b5b] hover:bg-[#eb5252] flex items-center justify-center shadow-lg transition-all duration-150 active:scale-90"
+                >
+                  <!-- Decline Phone Icon (수신 수화기를 rotate-[135deg] 회전시켜 엎어놓은 형태) -->
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 fill-white rotate-[135deg]" viewBox="0 0 24 24">
+                    <path d="M20 15.5c-1.25 0-2.45-.2-3.57-.57a1.02 1.02 0 0 0-1.02.24l-2.2 2.2a15.045 15.045 0 0 1-6.59-6.59l2.2-2.2c.28-.28.36-.67.25-1.02A11.36 11.36 0 0 1 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/>
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
+          <!-- 최하단 메시지 보내기 (이중 제스처 바 제거) -->
+          <div class="text-center pb-4">
+            <span class="text-xs font-semibold text-white/70 block hover:text-white/90 cursor-pointer">
+              메시지 보내기
+            </span>
+          </div>
+        </div>
       </div>
 
       <!-- B. CONNECTED ACTIVE CALL STATE -->
       <div v-else-if="store.simStatus === 'CONNECTED' && store.activeScenario" class="flex-1 flex flex-col justify-between py-6 xs:py-12 px-6 animate-fade-in">
         
         <!-- Active Call Header -->
-        <div class="text-center mt-6 xs:mt-12 space-y-1 xs:space-y-2">
-          <h2 class="text-2xl xs:text-3xl font-black tracking-tight text-white whitespace-pre-line">
-            {{ store.activeScenario.sender }}
+        <div class="text-center mt-6 xs:mt-12 space-y-1">
+          <h2 class="text-2xl xs:text-3xl font-bold tracking-tight text-white">
+            {{ parsedCaller.name }}
           </h2>
-          <p class="text-sm xs:text-base text-emerald-400 font-extrabold tracking-widest uppercase">
+          <p class="text-xs text-white/60 font-medium">
+            {{ parsedCaller.phone }}
+          </p>
+          <p class="text-sm text-emerald-400 font-extrabold tracking-widest mt-1 uppercase">
             {{ formatDuration(duration) }}
           </p>
         </div>
@@ -947,37 +981,68 @@ const closeReport = () => {
           <!-- Scenario Info Card -->
           <div class="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 space-y-2">
             <div class="flex justify-between items-center text-xs text-slate-450 font-bold">
-              <span>훈련 유형: 보이스피싱</span>
+              <span class="flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                훈련 유형: 보이스피싱
+              </span>
               <span>{{ activeAnalysis.date }}</span>
             </div>
-            <h4 class="text-sm font-bold text-slate-855 mt-1">{{ activeAnalysis.scenarioTitle.replace('\n', ' ') }}</h4>
-            <div class="flex items-center gap-1.5 text-xs text-slate-500 font-bold mt-1">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 12"/>
-              </svg>
-              <span>통화 유지 시간: {{ formatDuration(activeAnalysis.duration) }}초</span>
+            <h4 class="text-sm font-bold text-slate-800 mt-1">{{ activeAnalysis.scenarioTitle.replace('\n', ' ') }}</h4>
+            
+            <!-- 통화 유지 시간 & 위험 노출 게이지 바 -->
+            <div class="pt-2 border-t border-slate-200/50">
+              <div class="flex items-center justify-between text-xs text-slate-500 font-bold">
+                <div class="flex items-center gap-1.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 12"/>
+                  </svg>
+                  <span>통화 유지 시간: <strong class="text-slate-800">{{ formatDuration(activeAnalysis.duration) }}</strong></span>
+                </div>
+                <span class="text-[10px]" :class="activeAnalysis.duration < 10 ? 'text-emerald-600' : activeAnalysis.duration < 30 ? 'text-amber-600' : 'text-rose-600'">
+                  {{ activeAnalysis.duration < 10 ? '우수' : activeAnalysis.duration < 30 ? '미흡' : '위험' }}
+                </span>
+              </div>
+              
+              <!-- 게이지 바 디자인 -->
+              <div class="mt-2 space-y-1">
+                <div class="w-full bg-slate-200/80 h-1.5 rounded-full overflow-hidden">
+                  <div 
+                    :class="[
+                      'h-full rounded-full transition-all duration-500',
+                      activeAnalysis.duration < 10 ? 'bg-emerald-500' :
+                      activeAnalysis.duration < 30 ? 'bg-amber-500' : 'bg-rose-500'
+                    ]"
+                    :style="{ width: Math.min((activeAnalysis.duration / 60) * 100, 100) + '%' }"
+                  ></div>
+                </div>
+                <div class="flex justify-between text-[8px] text-slate-400 font-black uppercase tracking-wider">
+                  <span>안전 종료 (10초내)</span>
+                  <span>위험 전조 (30초)</span>
+                  <span>피해 위험 (60초+)</span>
+                </div>
+              </div>
             </div>
           </div>
 
           <!-- Vulnerability Rating -->
           <div 
             :class="[
-              'border rounded-2xl p-4 text-center space-y-1',
-              activeAnalysis.vulnerabilityStatus === 'SAFE' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
-              activeAnalysis.vulnerabilityStatus === 'WARNING' ? 'bg-amber-50 border-amber-200 text-amber-700' :
-              'bg-rose-50 border-rose-200 text-rose-700'
+              'border rounded-2xl p-5 text-center space-y-1.5 shadow-xs transition-all duration-300',
+              activeAnalysis.vulnerabilityStatus === 'SAFE' ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800' :
+              activeAnalysis.vulnerabilityStatus === 'WARNING' ? 'bg-amber-50/80 border-amber-200 text-amber-800' :
+              'bg-rose-50/80 border-rose-200 text-rose-800'
             ]"
           >
-            <p class="text-xs font-black uppercase tracking-wider">취약 진단 등급</p>
-            <p class="text-sm font-extrabold mt-1">
+            <p class="text-[11px] font-extrabold uppercase tracking-widest opacity-75">취약 진단 등급</p>
+            <p class="text-2xl font-black mt-1 tracking-tight">
               {{ 
                 activeAnalysis.vulnerabilityStatus === 'SAFE' ? '안전 (즉각 대처)' : 
                 activeAnalysis.vulnerabilityStatus === 'WARNING' ? '주의 (경고 노출)' : 
                 '위험 (송금 피해 고위험)' 
               }}
             </p>
-            <p class="text-xs text-slate-500 font-semibold mt-1">
+            <p class="text-xs font-bold mt-1 opacity-70">
               {{ activeAnalysis.hangUpStepName }} 에서 통화 종료
             </p>
           </div>
@@ -991,7 +1056,7 @@ const closeReport = () => {
               </svg>
               대처 취약점 분석
             </h5>
-            <div class="bg-slate-50/50 border border-slate-200/80 rounded-2xl p-3.5 text-slate-650 leading-relaxed font-semibold text-xs">
+            <div class="bg-slate-50/50 border border-slate-200/80 rounded-2xl p-3.5 text-slate-650 leading-relaxed font-semibold text-xs border-l-4 border-l-slate-400">
               {{ activeAnalysis.vulnerabilityExplanation }}
             </div>
           </div>
@@ -1007,26 +1072,43 @@ const closeReport = () => {
               안전 대응 가이드
             </h5>
             <div class="bg-slate-50/50 border border-slate-200/80 rounded-2xl p-3.5 text-slate-650 leading-relaxed font-semibold text-xs">
-              <p class="mb-2.5">{{ activeAnalysis.feedback }}</p>
-              <div class="border-t border-slate-200 pt-2.5 mt-2.5 space-y-2 text-xs">
+              <p class="mb-3">{{ activeAnalysis.feedback }}</p>
+              
+              <!-- 긴급 번호 버튼/다이얼 뱃지화 고도화 -->
+              <div class="border-t border-slate-200 pt-3 mt-3 space-y-2 text-xs">
                 <div class="flex justify-between items-center text-slate-500">
-                  <span>피해 발생 신고 (경찰청)</span>
-                  <span class="text-slate-800 font-bold">국번없이 112</span>
+                  <span class="font-medium">피해 발생 신고 (경찰청)</span>
+                  <a href="tel:112" class="bg-white hover:bg-slate-50 text-slate-800 font-extrabold px-2.5 py-1.2 rounded-lg border border-slate-200 flex items-center gap-1 shadow-2xs active:scale-95 transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 fill-slate-500" viewBox="0 0 24 24">
+                      <path d="M6.62 10.79a15.15 15.15 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.11-.27 11.36 11.36 0 0 0 3.58 1.1 1 1 0 0 1 .89 1v3.58a1 1 0 0 1-1 1A16 16 0 0 1 3 4a1 1 0 0 1 1-1h3.58a1 1 0 0 1 1 .89 11.36 11.36 0 0 0 1.1 3.58 1 1 0 0 1-.27 1.11z"/>
+                    </svg>
+                    <span>112</span>
+                  </a>
                 </div>
                 <div class="flex justify-between items-center text-slate-500">
-                  <span>피해 의심 상담 (금융감독원)</span>
-                  <span class="text-slate-800 font-bold">국번없이 1332</span>
+                  <span class="font-medium">피해 의심 상담 (금융감독원)</span>
+                  <a href="tel:1332" class="bg-white hover:bg-slate-50 text-slate-800 font-extrabold px-2.5 py-1.2 rounded-lg border border-slate-200 flex items-center gap-1 shadow-2xs active:scale-95 transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 fill-slate-500" viewBox="0 0 24 24">
+                      <path d="M6.62 10.79a15.15 15.15 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.11-.27 11.36 11.36 0 0 0 3.58 1.1 1 1 0 0 1 .89 1v3.58a1 1 0 0 1-1 1A16 16 0 0 1 3 4a1 1 0 0 1 1-1h3.58a1 1 0 0 1 1 .89 11.36 11.36 0 0 0 1.1 3.58 1 1 0 0 1-.27 1.11z"/>
+                    </svg>
+                    <span>1332</span>
+                  </a>
                 </div>
                 <div class="flex justify-between items-center text-slate-500">
-                  <span>스팸/번호변작 제보 (인터넷진흥원)</span>
-                  <span class="text-slate-800 font-bold">국번없이 118</span>
+                  <span class="font-medium">스팸/번호변작 제보 (KISA)</span>
+                  <a href="tel:118" class="bg-white hover:bg-slate-50 text-slate-800 font-extrabold px-2.5 py-1.2 rounded-lg border border-slate-200 flex items-center gap-1 shadow-2xs active:scale-95 transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 fill-slate-500" viewBox="0 0 24 24">
+                      <path d="M6.62 10.79a15.15 15.15 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.11-.27 11.36 11.36 0 0 0 3.58 1.1 1 1 0 0 1 .89 1v3.58a1 1 0 0 1-1 1A16 16 0 0 1 3 4a1 1 0 0 1 1-1h3.58a1 1 0 0 1 1 .89 11.36 11.36 0 0 0 1.1 3.58 1 1 0 0 1-.27 1.11z"/>
+                    </svg>
+                    <span>118</span>
+                  </a>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Phishing Techniques Timeline -->
-          <div class="space-y-2">
+          <!-- Phishing Techniques Timeline (수직선 잇는 타임라인 레이아웃으로 변경) -->
+          <div class="space-y-3">
             <h5 class="font-bold text-slate-700 text-xs flex items-center gap-1.5">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
                 <line x1="18" y1="20" x2="18" y2="10"/>
@@ -1035,34 +1117,37 @@ const closeReport = () => {
               </svg>
               보이스피싱 시나리오 단계별 구성
             </h5>
-            <div class="space-y-2">
+            
+            <div class="relative pl-6 space-y-4 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200">
               <div 
                 v-for="(tech, tIdx) in activeAnalysis.techniques" 
                 :key="tIdx"
                 :class="[
-                  'p-3.5 rounded-2xl border transition-all text-left flex gap-3',
+                  'relative p-3.5 rounded-2xl border transition-all text-left flex gap-3 shadow-2xs',
                   tIdx === activeAnalysis.hangUpStepIndex 
-                    ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-100 text-slate-800' 
-                    : 'bg-slate-50/30 border-slate-100 opacity-60 text-slate-500'
+                    ? 'bg-blue-50 border-blue-200 text-slate-800 border-l-[5px] border-l-blue-600' 
+                    : 'bg-slate-50/40 border-slate-100 opacity-60 text-slate-500'
                 ]"
               >
-                <!-- Badge -->
+                <!-- 타임라인 불릿 (Dot) -->
                 <div 
                   :class="[
-                    'w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 mt-0.5',
-                    tIdx === activeAnalysis.hangUpStepIndex ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'
+                    'absolute -left-[23px] top-4.5 w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center text-[7px] font-black z-10',
+                    tIdx === activeAnalysis.hangUpStepIndex 
+                      ? 'bg-blue-600 border-blue-200 text-white ring-4 ring-blue-100/50' 
+                      : 'bg-slate-200 border-white text-slate-500'
                   ]"
                 >
-                  {{ Number(tIdx) + 1 }}
                 </div>
-                <div class="space-y-1">
+                
+                <div class="space-y-1 flex-1">
                   <div class="flex items-center gap-1.5">
-                    <h6 class="font-bold text-xs" :class="tIdx === activeAnalysis.hangUpStepIndex ? 'text-slate-800' : 'text-slate-655'">{{ tech.name }}</h6>
-                    <span v-if="tIdx === activeAnalysis.hangUpStepIndex" class="text-[9px] bg-blue-500 text-white font-bold px-1.5 py-0.2 rounded">
+                    <h6 class="font-extrabold text-xs" :class="tIdx === activeAnalysis.hangUpStepIndex ? 'text-slate-800' : 'text-slate-655'">{{ tech.name }}</h6>
+                    <span v-if="tIdx === activeAnalysis.hangUpStepIndex" class="text-[8px] bg-blue-500 text-white font-bold px-1.5 py-0.2 rounded-md shadow-2xs">
                       종료 지점
                     </span>
                   </div>
-                  <p class="text-xs leading-normal" :class="tIdx === activeAnalysis.hangUpStepIndex ? 'text-slate-600' : 'text-slate-400'">{{ tech.desc }}</p>
+                  <p class="text-[11px] leading-relaxed" :class="tIdx === activeAnalysis.hangUpStepIndex ? 'text-slate-600' : 'text-slate-450'">{{ tech.desc }}</p>
                 </div>
               </div>
             </div>
