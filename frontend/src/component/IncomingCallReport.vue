@@ -49,7 +49,6 @@ const compactExplanationMap: Record<string, string> = {
       <div v-if="activeAnalysis.vulnerabilityStatus === 'SAFE'" class="space-y-1">
         <div class="flex items-center gap-2">
           <h2 class="text-[22px] font-black tracking-tight text-slate-900">피싱 대처 결과</h2>
-          <span class="bg-blue-50 text-blue-600 border border-blue-200 text-[10.5px] font-black px-2.5 py-0.5 rounded-full">안전</span>
         </div>
         <p class="text-xs text-slate-400 font-bold mt-1">즉각적인 통화 종료로 피해를 성공적으로 차단했습니다.</p>
       </div>
@@ -80,7 +79,7 @@ const compactExplanationMap: Record<string, string> = {
             : 'text-slate-400 hover:text-slate-700'
         ]"
       >
-        취약점 분석
+        요약
       </button>
       <button 
         @click="activeTab = 'guide'"
@@ -98,10 +97,34 @@ const compactExplanationMap: Record<string, string> = {
     <!-- 내용 스크롤 영역 -->
     <div class="flex-1 overflow-y-auto overflow-x-hidden pr-1 scroll-container mt-4 px-1">
       
-      <!-- TAB 1: 취약점 분석 -->
+      <!-- TAB 1: 요약 -->
       <div v-if="activeTab === 'analysis'" class="space-y-4 animate-fade-in text-left pb-4">
         
-        <!-- CARD A: 잘 대처했어요 / 주의가 필요해요 대비 목록 -->
+        <!-- CARD: 취약 진단 등급 -->
+        <div
+          :class="[
+            'rounded-2xl p-4 text-center space-y-1 border',
+            activeAnalysis.vulnerabilityStatus === 'SAFE'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+              : activeAnalysis.vulnerabilityStatus === 'WARNING'
+              ? 'bg-amber-50 border-amber-200 text-amber-700'
+              : 'bg-rose-50 border-rose-200 text-rose-700'
+          ]"
+        >
+          <p class="text-[10px] font-black uppercase tracking-wider">취약 진단 등급</p>
+          <p class="text-[15px] font-extrabold mt-1">
+            {{
+              activeAnalysis.vulnerabilityStatus === 'SAFE' ? '안전 (즉각 회피)' :
+              activeAnalysis.vulnerabilityStatus === 'WARNING' ? '주의 (경고 노출)' :
+              '위험 (금전 피해 고위험)'
+            }}
+          </p>
+          <p class="text-[11px] font-semibold opacity-80 mt-0.5">
+            {{ activeAnalysis.hangUpStepName }}에서 통화 종료
+          </p>
+        </div>
+
+        <!-- CARD: 잘 대처했어요 / 주의가 필요해요 대비 목록 -->
         <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4.5 space-y-4">
           <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">훈련 행동 정밀 진단</p>
           
@@ -165,124 +188,96 @@ const compactExplanationMap: Record<string, string> = {
           </div>
         </div>
 
-        <!-- CARD B: 종합 평가 소견 -->
-        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4.5 space-y-1">
-          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">진단 소견</p>
-          <p class="text-slate-600 leading-relaxed font-bold text-[12px]">
-            {{ compactExplanationMap[activeAnalysis.vulnerabilityStatus] || activeAnalysis.vulnerabilityExplanation }}
-          </p>
-        </div>
-
-        <!-- CARD C: 시나리오 진행 흐름 타임라인 -->
-        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4.5 space-y-3">
-          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-0.5">시나리오 진행 흐름</p>
-          
-          <div class="relative pl-4 space-y-3 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200">
-            <div 
-              v-for="(tech, tIdx) in activeAnalysis.techniques" 
-              :key="tIdx"
-              :class="[
-                'relative p-3.5 rounded-xl border transition-all text-left flex items-center justify-between shadow-3xs',
-                tIdx === activeAnalysis.hangUpStepIndex 
-                  ? 'border-blue-200 bg-white shadow-xs text-slate-800' 
-                  : 'border-slate-150/40 opacity-60 text-slate-450 bg-white/70'
-              ]"
-            >
-              <!-- 타임라인 불릿 디자인 -->
-              <div 
-                :class="[
-                  'absolute -left-[17px] top-1/2 -translate-y-1/2 w-2 h-2 rounded-full border-2',
-                  tIdx === activeAnalysis.hangUpStepIndex 
-                    ? 'bg-blue-600 border-blue-200 ring-2 ring-blue-100' 
-                    : 'bg-white border-slate-300'
-                  ]"
-              ></div>
-              
-              <h6 class="font-bold text-xs" :class="tIdx === activeAnalysis.hangUpStepIndex ? 'text-slate-900' : 'text-slate-500'">
-                {{ tIdx + 1 }}단계. {{ tech.name }}
-              </h6>
-              <span v-if="tIdx === activeAnalysis.hangUpStepIndex" class="bg-blue-500 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-lg shadow-2xs">
-                차단
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- TAB 2: 상세 진단 내역 -->
-      <div v-else-if="activeTab === 'guide'" class="space-y-4 animate-fade-in text-left pb-4">
-
-        <!-- CARD: 취약 진단 등급 -->
-        <div
-          :class="[
-            'rounded-2xl p-4 text-center space-y-1 border',
-            activeAnalysis.vulnerabilityStatus === 'SAFE'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-              : activeAnalysis.vulnerabilityStatus === 'WARNING'
-              ? 'bg-amber-50 border-amber-200 text-amber-700'
-              : 'bg-rose-50 border-rose-200 text-rose-700'
-          ]"
-        >
-          <p class="text-[10px] font-black uppercase tracking-wider">취약 진단 등급</p>
-          <p class="text-[15px] font-extrabold mt-1">
-            {{
-              activeAnalysis.vulnerabilityStatus === 'SAFE' ? '안전 (즉각 회피)' :
-              activeAnalysis.vulnerabilityStatus === 'WARNING' ? '주의 (경고 노출)' :
-              '위험 (금전 피해 고위험)'
-            }}
-          </p>
-          <p class="text-[11px] font-semibold opacity-80 mt-0.5">
-            {{ activeAnalysis.hangUpStepName }}에서 통화 종료
-          </p>
-        </div>
-
-        <!-- CARD: 시나리오 정보 -->
-        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4 space-y-2">
-          <div class="flex justify-between items-center">
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">훈련 시나리오</p>
-            <span class="text-[10px] font-bold text-slate-400">{{ activeAnalysis.date }}</span>
-          </div>
-          <h4 class="text-[13px] font-extrabold text-slate-800 leading-snug">{{ activeAnalysis.scenarioTitle?.replace('\n', ' ') }}</h4>
-          <div class="flex items-center gap-1.5 text-[11px] text-slate-500 font-bold mt-0.5">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 12"/>
-            </svg>
-            <span>통화 지속 시간: {{ formatDuration(activeAnalysis.duration) }}분</span>
-          </div>
-        </div>
-
-        <!-- CARD: 취약점 분석 -->
-        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4 space-y-2">
-          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">취약점 분석</p>
-          <p class="text-[12px] text-slate-600 leading-relaxed font-bold">
-            {{ compactExplanationMap[activeAnalysis.vulnerabilityStatus] || activeAnalysis.vulnerabilityExplanation }}
-          </p>
-        </div>
-
         <!-- CARD: 피드백 및 대처 조언 -->
         <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4 space-y-3">
           <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">대처 조언</p>
           <p class="text-[12px] text-slate-600 leading-relaxed font-bold">{{ activeAnalysis.feedback }}</p>
-          <div class="border-t border-slate-200/60 pt-3 space-y-2">
-            <div class="flex justify-between items-center">
-              <span class="text-[11px] text-slate-500 font-bold">피해 신고 접수 (경찰청)</span>
-              <span class="text-[11px] text-[#4a5fec] font-extrabold">☎ 112</span>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-[11px] text-slate-500 font-bold">피해 상담 환급 (금감원)</span>
-              <span class="text-[11px] text-[#4a5fec] font-extrabold">☎ 1332</span>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-[11px] text-slate-500 font-bold">스팸/번호도용 제보 (KISA)</span>
-              <span class="text-[11px] text-[#4a5fec] font-extrabold">☎ 118</span>
-            </div>
-          </div>
-        </div>
 
+          <!-- 상태별 단계 대처법 -->
+          <div class="border-t border-slate-200/60 pt-3 space-y-2">
+
+            <!-- SAFE: 잘 대처한 경우 -->
+            <template v-if="activeAnalysis.vulnerabilityStatus === 'SAFE'">
+              <p class="text-[10px] font-extrabold text-[#4a5fec] uppercase tracking-wider">이렇게 대응하세요</p>
+              <div class="space-y-1.5">
+                <div class="flex items-start gap-2">
+                  <span class="text-slate-400 text-[11px] leading-snug flex-shrink-0">•</span>
+                  <p class="text-[11px] text-slate-700 font-bold leading-snug">모르는 번호로 온 공공기관 사칭 전화는 무조건 즉시 끊으세요. 진짜 기관은 전화로 계좌 이체나 개인정보를 요구하지 않습니다.</p>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="text-slate-400 text-[11px] leading-snug flex-shrink-0">•</span>
+                  <p class="text-[11px] text-slate-700 font-bold leading-snug">의심 번호는 스팸 차단 앱(후후·T전화)에 즉시 신고해 동일 피해를 차단하세요.</p>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="text-slate-400 text-[11px] leading-snug flex-shrink-0">•</span>
+                  <p class="text-[11px] text-slate-700 font-bold leading-snug">가족·지인에게 동일 수법을 공유해 주변 피해를 예방하세요.</p>
+                </div>
+              </div>
+            </template>
+
+            <!-- WARNING: 주의가 필요한 경우 -->
+            <template v-else-if="activeAnalysis.vulnerabilityStatus === 'WARNING'">
+              <p class="text-[10px] font-extrabold text-[#4a5fec] uppercase tracking-wider">이렇게 대응하세요</p>
+              <div class="space-y-1.5">
+                <div class="flex items-start gap-2">
+                  <span class="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
+                  <p class="text-[11px] text-slate-700 font-bold leading-snug">통화 중 개인정보(이름·주민번호·계좌번호)를 말했다면 <span class="text-amber-600">즉시 해당 은행에 전화해</span> 계좌 지급정지를 요청하세요.</p>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+                  <p class="text-[11px] text-slate-700 font-bold leading-snug">앞으로는 <span class="text-amber-600">통화 시작 후 10초 이내</span>에 공공기관 사칭 여부를 판단하고 바로 끊는 연습이 필요합니다.</p>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
+                  <p class="text-[11px] text-slate-700 font-bold leading-snug">"금융감독원·검찰청 직원"이라고 하면 <span class="text-amber-600">100% 사기</span>입니다. 직함이나 사건번호를 말해도 믿지 마세요.</p>
+                </div>
+              </div>
+            </template>
+
+            <!-- CRITICAL: 위험한 경우 -->
+            <template v-else>
+              <p class="text-[10px] font-extrabold text-rose-600 uppercase tracking-wider">🚨 지금 즉시 하세요</p>
+              <div class="space-y-1.5">
+                <div class="flex items-start gap-2">
+                  <span class="w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
+                  <p class="text-[11px] text-slate-700 font-bold leading-snug"><span class="text-rose-600">모든 거래 은행에 즉시 전화</span>해 계좌 지급정지·OTP 차단을 요청하고, 금감원(1332)에 피해 사실을 신고하세요.</p>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+                  <p class="text-[11px] text-slate-700 font-bold leading-snug">주민번호·공인인증서 등 개인정보가 노출됐다면 <span class="text-rose-600">명의도용방지 서비스(NICE·KCB)</span>에서 즉시 신용 차단 신청을 하세요.</p>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
+                  <p class="text-[11px] text-slate-700 font-bold leading-snug">앱 설치나 원격 제어 앱을 설치했다면 <span class="text-rose-600">즉시 삭제</span>하고, 스마트폰을 공장 초기화하는 것을 권장합니다.</p>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">4</span>
+                  <p class="text-[11px] text-slate-700 font-bold leading-snug">경찰(112)에 신고 후 <span class="text-rose-600">통화 녹음·문자 캡처 등 증거를 보관</span>하세요. 빠를수록 피해 회복 가능성이 높아집니다.</p>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- 긴급 연락처 -->
+          <!-- <div class="border-t border-slate-200/60 pt-3 space-y-2">
+            <p class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">긴급 연락처</p>
+            <div class="flex justify-between items-center bg-white rounded-xl px-3 py-2 border border-slate-100 shadow-3xs">
+              <span class="text-[11px] text-slate-700 font-bold">경찰청 <span class="text-slate-400 font-semibold">· 피해 신고 접수</span></span>
+              <span class="text-[13px] text-[#4a5fec] font-extrabold">☎ 112</span>
+            </div>
+            <div class="flex justify-between items-center bg-white rounded-xl px-3 py-2 border border-slate-100 shadow-3xs">
+              <span class="text-[11px] text-slate-700 font-bold">금융감독원 <span class="text-slate-400 font-semibold">· 피해 상담 및 환급</span></span>
+              <span class="text-[13px] text-[#4a5fec] font-extrabold">☎ 1332</span>
+            </div>
+            <div class="flex justify-between items-center bg-white rounded-xl px-3 py-2 border border-slate-100 shadow-3xs">
+              <span class="text-[11px] text-slate-700 font-bold">KISA <span class="text-slate-400 font-semibold">· 스팸·번호도용 제보</span></span>
+              <span class="text-[13px] text-[#4a5fec] font-extrabold">☎ 118</span>
+            </div>
+          </div> -->
+        </div>
         <!-- CARD: 피싱 수법 단계별 타임라인 -->
-        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4 space-y-3">
-          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">보이스피싱 수법 단계 분석</p>
+        <!-- <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4 space-y-3">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">보이스피싱 시나리오 분석</p>
           <div class="space-y-2">
             <div
               v-for="(tech, tIdx) in activeAnalysis.techniques"
@@ -317,7 +312,28 @@ const compactExplanationMap: Record<string, string> = {
               </div>
             </div>
           </div>
+        </div> -->
+      </div>
+
+      <!-- TAB 2: 상세 진단 내역 -->
+      <div v-else-if="activeTab === 'guide'" class="space-y-4 animate-fade-in text-left pb-4">
+
+        <!-- CARD: 시나리오 정보 -->
+        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4 space-y-2">
+          <div class="flex justify-between items-center">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">훈련 시나리오</p>
+            <span class="text-[10px] font-bold text-slate-400">{{ activeAnalysis.date }}</span>
+          </div>
+          <h4 class="text-[13px] font-extrabold text-slate-800 leading-snug">{{ activeAnalysis.scenarioTitle?.replace('\n', ' ') }}</h4>
+          <div class="flex items-center gap-1.5 text-[11px] text-slate-500 font-bold mt-0.5">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 12"/>
+            </svg>
+            <span>통화 지속 시간: {{ formatDuration(activeAnalysis.duration) }}분</span>
+          </div>
         </div>
+
 
       </div>
     </div>
@@ -325,7 +341,7 @@ const compactExplanationMap: Record<string, string> = {
     <!-- Confirm Button -->
     <button 
       @click="emit('close')"
-      class="w-full bg-[#4a5fec] hover:bg-[#394dcd] active:scale-[0.99] transition-all text-white font-extrabold text-sm py-4.5 px-4 rounded-2xl shadow-[0_8px_30px_rgba(74,95,236,0.18)] focus:outline-none tracking-tight mt-4"
+      class="w-full bg-[#4a5fec] hover:bg-[#394dcd] active:scale-[0.99] transition-all text-white font-extrabold text-sm py-4.5 px-4 rounded-2xl shadow-[0_8px_30px_rgba(74,95,236,0.18)] focus:outline-none tracking-tight mt-2"
     >
       리포트 닫기 및 훈련 종료
     </button>
