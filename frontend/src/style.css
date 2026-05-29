@@ -4,3 +4,14 @@
   --font-sans: "Inter", "Noto Sans KR", system-ui, -apple-system, sans-serif;
   --breakpoint-xs: 480px;
 }
+
+/* Hide scrollbars globally across the entire application */
+* {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+*::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
+

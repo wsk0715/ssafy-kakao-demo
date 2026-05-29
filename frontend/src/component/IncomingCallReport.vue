@@ -349,21 +349,12 @@ const compactExplanationMap: Record<string, string> = {
 </template>
 
 <style scoped>
-/* Custom Scrollbar for Report */
+/* Hide Scrollbar for Report Container */
 .scroll-container {
-  scrollbar-width: thin;
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
 }
 .scroll-container::-webkit-scrollbar {
-  width: 4px;
-}
-.scroll-container::-webkit-scrollbar-track {
-  background: transparent;
-}
-.scroll-container::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 4px;
-}
-.scroll-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.15);
+  display: none; /* Chrome, Safari and Opera */
 }
 </style>
