@@ -39,6 +39,32 @@ const compactExplanationMap: Record<string, string> = {
   WARNING: '통화는 중단했으나, 의심 멘트 노출 시간이 다소 지연되었습니다.',
   CRITICAL: '이체 및 정보 강요 단계까지 통화가 유지되어 피싱 위험에 극도로 노출되었습니다.'
 }
+
+const getEmergencyContactForStep = (stepName: string, index: number) => {
+  const name = stepName.toLowerCase()
+  if (name.includes('이체') || name.includes('송금') || name.includes('계좌') || name.includes('금감원') || index === 2) {
+    return {
+      agency: '금융감독원',
+      number: '1332',
+      action: '피해 상담 및 계좌 지급정지',
+      requiredDocs: ['이체 거래 내역서', '피해구제 신청서']
+    }
+  } else if (name.includes('설치') || name.includes('악성') || name.includes('스팸') || name.includes('도용')) {
+    return {
+      agency: 'KISA',
+      number: '118',
+      action: '해킹/악성 앱 신고 및 스팸 제보',
+      requiredDocs: ['스팸 문자 캡처본', '악성 APK 파일']
+    }
+  } else {
+    return {
+      agency: '경찰청',
+      number: '112',
+      action: '피해 신고 및 사칭 조사 문의',
+      requiredDocs: ['신분증 사본', '통화 녹음 파일', '사건 증거 자료']
+    }
+  }
+}
 </script>
 
 <template>
@@ -55,14 +81,12 @@ const compactExplanationMap: Record<string, string> = {
       <div v-else-if="activeAnalysis.vulnerabilityStatus === 'WARNING'" class="space-y-1">
         <div class="flex items-center gap-2">
           <h2 class="text-[22px] font-black tracking-tight text-slate-900">피싱 대처 결과</h2>
-          <span class="bg-amber-50 text-amber-600 border border-amber-200 text-[10.5px] font-black px-2.5 py-0.5 rounded-full">주의</span>
         </div>
         <p class="text-xs text-slate-400 font-bold mt-1">대화 지속 시간이 다소 길어 주의가 필요합니다.</p>
       </div>
       <div v-else class="space-y-1">
         <div class="flex items-center gap-2">
           <h2 class="text-[22px] font-black tracking-tight text-slate-900">피싱 대처 결과</h2>
-          <span class="bg-rose-50 text-rose-600 border border-rose-200 text-[10.5px] font-black px-2.5 py-0.5 rounded-full">위험</span>
         </div>
         <p class="text-xs text-slate-400 font-bold mt-1">이체 및 개인정보 유도 단계까지 노출되었습니다.</p>
       </div>
@@ -220,39 +244,39 @@ const compactExplanationMap: Record<string, string> = {
               <p class="text-[10px] font-extrabold text-[#4a5fec] uppercase tracking-wider">이렇게 대응하세요</p>
               <div class="space-y-1.5">
                 <div class="flex items-start gap-2">
-                  <span class="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
-                  <p class="text-[11px] text-slate-700 font-bold leading-snug">통화 중 개인정보(이름·주민번호·계좌번호)를 말했다면 <span class="text-amber-600">즉시 해당 은행에 전화해</span> 계좌 지급정지를 요청하세요.</p>
+                  <span class="text-slate-400 text-[11px] leading-snug flex-shrink-0">•</span>
+                  <p class="text-[11px] text-slate-700 font-bold leading-snug">통화 중 개인정보(이름·주민번호·계좌번호)를 말했다면 즉시 해당 은행에 전화해 계좌 지급정지를 요청하세요.</p>
                 </div>
                 <div class="flex items-start gap-2">
-                  <span class="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
-                  <p class="text-[11px] text-slate-700 font-bold leading-snug">앞으로는 <span class="text-amber-600">통화 시작 후 10초 이내</span>에 공공기관 사칭 여부를 판단하고 바로 끊는 연습이 필요합니다.</p>
+                  <span class="text-slate-400 text-[11px] leading-snug flex-shrink-0">•</span>
+                  <p class="text-[11px] text-slate-700 font-bold leading-snug">앞으로는 통화 시작 후 10초 이내에 공공기관 사칭 여부를 판단하고 바로 끊는 연습이 필요합니다.</p>
                 </div>
                 <div class="flex items-start gap-2">
-                  <span class="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
-                  <p class="text-[11px] text-slate-700 font-bold leading-snug">"금융감독원·검찰청 직원"이라고 하면 <span class="text-amber-600">100% 사기</span>입니다. 직함이나 사건번호를 말해도 믿지 마세요.</p>
+                  <span class="text-slate-400 text-[11px] leading-snug flex-shrink-0">•</span>
+                  <p class="text-[11px] text-slate-700 font-bold leading-snug">"금융감독원·검찰청 직원"이라고 하면 100% 사기입니다. 직함이나 사건번호를 말해도 믿지 마세요.</p>
                 </div>
               </div>
             </template>
 
             <!-- CRITICAL: 위험한 경우 -->
             <template v-else>
-              <p class="text-[10px] font-extrabold text-rose-600 uppercase tracking-wider">🚨 지금 즉시 하세요</p>
+              <p class="text-[10px] font-extrabold text-rose-600 uppercase tracking-wider">이렇게 대응하세요</p>
               <div class="space-y-1.5">
                 <div class="flex items-start gap-2">
-                  <span class="w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
-                  <p class="text-[11px] text-slate-700 font-bold leading-snug"><span class="text-rose-600">모든 거래 은행에 즉시 전화</span>해 계좌 지급정지·OTP 차단을 요청하고, 금감원(1332)에 피해 사실을 신고하세요.</p>
+                  <span class="text-slate-400 text-[11px] leading-snug flex-shrink-0">•</span>
+                  <p class="text-[11px] text-slate-700 font-bold leading-snug">모든 거래 은행에 즉시 전화해 계좌 지급정지·OTP 차단을 요청하고, 금감원(1332)에 피해 사실을 신고하세요.</p>
                 </div>
                 <div class="flex items-start gap-2">
-                  <span class="w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
-                  <p class="text-[11px] text-slate-700 font-bold leading-snug">주민번호·공인인증서 등 개인정보가 노출됐다면 <span class="text-rose-600">명의도용방지 서비스(NICE·KCB)</span>에서 즉시 신용 차단 신청을 하세요.</p>
+                  <span class="text-slate-400 text-[11px] leading-snug flex-shrink-0">•</span>
+                  <p class="text-[11px] text-slate-700 font-bold leading-snug">주민번호·공인인증서 등 개인정보가 노출됐다면 명의도용방지 서비스(NICE·KCB)에서 즉시 신용 차단 신청을 하세요.</p>
                 </div>
                 <div class="flex items-start gap-2">
-                  <span class="w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
-                  <p class="text-[11px] text-slate-700 font-bold leading-snug">앱 설치나 원격 제어 앱을 설치했다면 <span class="text-rose-600">즉시 삭제</span>하고, 스마트폰을 공장 초기화하는 것을 권장합니다.</p>
+                  <span class="text-slate-400 text-[11px] leading-snug flex-shrink-0">•</span>
+                  <p class="text-[11px] text-slate-700 font-bold leading-snug">앱 설치나 원격 제어 앱을 설치했다면 즉시 삭제하고, 스마트폰을 공장 초기화하는 것을 권장합니다.</p>
                 </div>
                 <div class="flex items-start gap-2">
-                  <span class="w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">4</span>
-                  <p class="text-[11px] text-slate-700 font-bold leading-snug">경찰(112)에 신고 후 <span class="text-rose-600">통화 녹음·문자 캡처 등 증거를 보관</span>하세요. 빠를수록 피해 회복 가능성이 높아집니다.</p>
+                  <span class="text-slate-400 text-[11px] leading-snug flex-shrink-0">•</span>
+                  <p class="text-[11px] text-slate-700 font-bold leading-snug">경찰(112)에 신고 후 통화 녹음·문자 캡처 등 증거를 보관하세요. 빠를수록 피해 회복 가능성이 높아집니다.</p>
                 </div>
               </div>
             </template>
@@ -318,22 +342,132 @@ const compactExplanationMap: Record<string, string> = {
       <!-- TAB 2: 상세 진단 내역 -->
       <div v-else-if="activeTab === 'guide'" class="space-y-4 animate-fade-in text-left pb-4">
 
-        <!-- CARD: 시나리오 정보 -->
-        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4 space-y-2">
-          <div class="flex justify-between items-center">
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">훈련 시나리오</p>
-            <span class="text-[10px] font-bold text-slate-400">{{ activeAnalysis.date }}</span>
+        <!-- CARD: 시나리오 정보 & 타임라인 분석 통합 카드 -->
+        <div class="bg-slate-50/60 border border-slate-100/80 rounded-2xl p-4 space-y-3">
+          
+          <!-- 시나리오 기본 헤더 -->
+          <div class="space-y-1">
+            <div class="flex justify-between items-center">
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">훈련 시나리오</p>
+              <span class="text-[10px] font-bold text-slate-400">{{ activeAnalysis.date }}</span>
+            </div>
+            <div class="flex justify-between items-center gap-4">
+              <h4 class="text-[13px] font-extrabold text-slate-800 leading-snug flex-1">{{ activeAnalysis.scenarioTitle?.replace('\n', ' ') }}</h4>
+              <div class="flex items-center gap-1 text-[11px] text-[#4a5fec] font-extrabold flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12 6 12 12 16 12"/>
+                </svg>
+                <span>{{ formatDuration(activeAnalysis.duration) }}</span>
+              </div>
+            </div>
           </div>
-          <h4 class="text-[13px] font-extrabold text-slate-800 leading-snug">{{ activeAnalysis.scenarioTitle?.replace('\n', ' ') }}</h4>
-          <div class="flex items-center gap-1.5 text-[11px] text-slate-500 font-bold mt-0.5">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 12"/>
-            </svg>
-            <span>통화 지속 시간: {{ formatDuration(activeAnalysis.duration) }}분</span>
+
+          <!-- 타임라인 별 취약점 분석 및 맞춤 행동 대응 -->
+          <div class="border-t border-slate-200/60 pt-3 space-y-3">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">타임라인</p>
+            
+            <div class="space-y-3">
+              <div 
+                v-for="(tech, tIdx) in activeAnalysis.techniques" 
+                :key="tIdx"
+                :class="[
+                  'p-3.5 rounded-xl border bg-white shadow-3xs transition-all text-left space-y-3',
+                  tIdx === activeAnalysis.hangUpStepIndex 
+                    ? 'border-blue-200 ring-1 ring-blue-100' 
+                    : tIdx < activeAnalysis.hangUpStepIndex
+                    ? 'border-slate-150 opacity-80'
+                    : 'border-slate-150/40 opacity-50'
+                ]"
+              >
+                <!-- 단계 타이틀 -->
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span 
+                      :class="[
+                        'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black',
+                        tIdx <= activeAnalysis.hangUpStepIndex ? 'bg-[#4a5fec] text-white' : 'bg-slate-200 text-slate-500'
+                      ]"
+                    >
+                      {{ tIdx + 1 }}
+                    </span>
+                    <h6 class="font-extrabold text-xs text-slate-800">
+                      {{ tech.name }}
+                    </h6>
+                  </div>
+                  
+                  <span 
+                    v-if="tIdx === activeAnalysis.hangUpStepIndex" 
+                    class="bg-blue-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded"
+                  >
+                    차단 지점
+                  </span>
+                  <span 
+                    v-else-if="tIdx < activeAnalysis.hangUpStepIndex" 
+                    class="text-[9px] text-rose-600 font-bold"
+                  >
+                    통과
+                  </span>
+                  <span 
+                    v-else 
+                    class="text-[9px] text-slate-450 font-bold"
+                  >
+                    미도달
+                  </span>
+                </div>
+
+                <!-- 단계 설명 -->
+                <p class="text-[11px] text-slate-500 leading-normal pl-7">
+                  {{ tech.desc }}
+                </p>
+
+                <!-- 차단(종료) 지점일 경우 취약점 진단 분석 노출 -->
+                <div 
+                  v-if="tIdx === activeAnalysis.hangUpStepIndex" 
+                  class="bg-slate-50 rounded-lg p-2.5 space-y-1.5 border border-slate-100 ml-7"
+                >
+                  <div>
+                    <span class="text-[9px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">취약 진단</span>
+                    <p class="text-[11px] text-slate-700 font-bold leading-normal mt-1">
+                      {{ activeAnalysis.vulnerabilityExplanation }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- 단계별 위험에 비례한 전담 긴급 대응 기관 매핑 -->
+                <div 
+                  v-if="tIdx <= activeAnalysis.hangUpStepIndex" 
+                  class="border-t border-slate-100 pt-2.5 ml-7 space-y-2 text-[11px]"
+                >
+                  <div class="flex items-center justify-between">
+                    <div class="flex flex-col">
+                      <span class="font-bold text-slate-750">
+                        {{ getEmergencyContactForStep(tech.name, tIdx).agency }} 
+                        <span class="text-[10px] text-slate-400 font-medium">
+                          ({{ getEmergencyContactForStep(tech.name, tIdx).action }})
+                        </span>
+                      </span>
+                    </div>
+                    <span class="font-extrabold text-[#4a5fec] flex-shrink-0">
+                      ☎ {{ getEmergencyContactForStep(tech.name, tIdx).number }}
+                    </span>
+                  </div>
+                  <!-- 필요 제출 문서 표시 -->
+                  <div class="flex flex-wrap items-center gap-1.5 pt-1 border-t border-dashed border-slate-100">
+                    <span class="text-[9px] text-slate-400 font-bold">필요 서류:</span>
+                    <span 
+                      v-for="(doc, dIdx) in getEmergencyContactForStep(tech.name, tIdx).requiredDocs" 
+                      :key="dIdx"
+                      class="bg-slate-100 text-slate-600 text-[9px] font-semibold px-1.5 py-0.5 rounded"
+                    >
+                      {{ doc }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-
 
       </div>
     </div>
