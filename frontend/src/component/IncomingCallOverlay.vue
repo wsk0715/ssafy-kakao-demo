@@ -44,6 +44,7 @@ const parsedCaller = computed(() => {
 // Call duration timer
 const duration = ref(0)
 let timerId: any = null
+let attackerSpeechTimeoutId: any = null
 
 // Speaker/Mute state
 const isMutedLocal = ref(false)
@@ -257,6 +258,10 @@ const stopSTT = () => {
 
 // Synthesize and play Attacker Speech (Local ChatTTS stream integration)
 const triggerAttackerSpeech = () => {
+  if (store.simStatus !== 'CONNECTED') {
+    console.log('[TTS] Guard: Blocked triggerAttackerSpeech since status is:', store.simStatus)
+    return
+  }
   const step = currentVoiceStep.value
   if (!step) return
 
@@ -280,6 +285,7 @@ const triggerAttackerSpeech = () => {
     const textLength = dialogueToPlay.length
     const speechDuration = Math.min(Math.max(textLength * 80, 1500), 5000)
     setTimeout(() => {
+      if (store.simStatus !== 'CONNECTED') return
       if (isAttackerSpeaking.value) {
         isAttackerSpeaking.value = false
         startSTT()
@@ -289,6 +295,7 @@ const triggerAttackerSpeech = () => {
   })
 
   audioObj.onended = () => {
+    if (store.simStatus !== 'CONNECTED') return
     console.log('[TTS Speech Ended] Normal ending. Activating user listener.')
     isAttackerSpeaking.value = false
     activeAudio.value = null
@@ -297,6 +304,7 @@ const triggerAttackerSpeech = () => {
   }
 
   audioObj.onerror = (err) => {
+    if (store.simStatus !== 'CONNECTED') return
     console.error('[TTS Audio Error] Audio stream error. Falling back.', err)
     isAttackerSpeaking.value = false
     activeAudio.value = null
@@ -342,6 +350,11 @@ const handleUserSpeechInput = async (spokenText: string) => {
   audioQueue = []
 
   const playNextAudio = () => {
+    if (store.simStatus !== 'CONNECTED') {
+      console.log('[TTS] Guard: Blocked playNextAudio since status is:', store.simStatus)
+      stopActiveAudio()
+      return
+    }
     if (audioQueue.length === 0) {
       if (isSseCompleted) {
         console.log('[Audio Queue] Finished playing all streamed chunks. Attacker speech truly ended.')
@@ -363,6 +376,7 @@ const handleUserSpeechInput = async (spokenText: string) => {
       console.warn('[Audio Queue Playback Blocked] Using fallback reading timer.', e)
       const speechDuration = Math.min(Math.max(item.text.length * 85, 1500), 4500)
       setTimeout(() => {
+        if (store.simStatus !== 'CONNECTED') return
         actuallyHeardText.value += (actuallyHeardText.value ? ' ' : '') + item.text
         isAudioPlaying = false
         playNextAudio()
@@ -370,12 +384,14 @@ const handleUserSpeechInput = async (spokenText: string) => {
     })
 
     item.audio.onended = () => {
+      if (store.simStatus !== 'CONNECTED') return
       actuallyHeardText.value += (actuallyHeardText.value ? ' ' : '') + item.text
       isAudioPlaying = false
       playNextAudio()
     }
 
     item.audio.onerror = (err) => {
+      if (store.simStatus !== 'CONNECTED') return
       console.error('[TTS Audio Queue Error] Failed to play chunk. Skipping.', err)
       isAudioPlaying = false
       playNextAudio()
@@ -389,6 +405,10 @@ const handleUserSpeechInput = async (spokenText: string) => {
   responseEventSource = es
 
   es.addEventListener('chunk', (event: any) => {
+    if (store.simStatus !== 'CONNECTED') {
+      es.close()
+      return
+    }
     try {
       const data = JSON.parse(event.data)
       const chunkText = data.text
@@ -420,6 +440,10 @@ const handleUserSpeechInput = async (spokenText: string) => {
   })
 
   es.addEventListener('complete', (event: any) => {
+    if (store.simStatus !== 'CONNECTED') {
+      es.close()
+      return
+    }
     console.log('[SSE LLM Complete] Finished stream:', event.data)
     isSseCompleted = true
     es.close()
@@ -436,6 +460,10 @@ const handleUserSpeechInput = async (spokenText: string) => {
   })
 
   es.onerror = (err) => {
+    if (store.simStatus !== 'CONNECTED') {
+      es.close()
+      return
+    }
     console.warn('[SSE LLM Connection Error]', err)
     isSseCompleted = true
     es.close()
@@ -674,11 +702,18 @@ watch(() => store.simStatus as any, (newStatus: any) => {
     }, 1000)
     
     // Begin scammer conversation with delay
-    setTimeout(() => {
+    if (attackerSpeechTimeoutId) clearTimeout(attackerSpeechTimeoutId)
+    attackerSpeechTimeoutId = setTimeout(() => {
       triggerAttackerSpeech()
     }, 800)
     
-  } else if (newStatus !== 'RINGING' && newStatus !== 'CONNECTED' && newStatus !== 'CALL_REPORT') {
+  } else {
+    // Clear attacker speech delay timer
+    if (attackerSpeechTimeoutId) {
+      clearTimeout(attackerSpeechTimeoutId)
+      attackerSpeechTimeoutId = null
+    }
+    // Stop all audio & STT if we leave CONNECTED state
     if (timerId) {
       clearInterval(timerId)
       timerId = null

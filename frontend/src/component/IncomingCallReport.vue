@@ -34,36 +34,55 @@ const formatDuration = (sec: number) => {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-const compactExplanationMap: Record<string, string> = {
-  SAFE: '피싱 의심 징후를 조기에 감지하고 통화를 종료하였습니다.',
-  WARNING: '통화는 중단했으나, 의심 멘트 노출 시간이 다소 지연되었습니다.',
-  CRITICAL: '이체 및 정보 강요 단계까지 통화가 유지되어 피싱 위험에 극도로 노출되었습니다.'
-}
 
 const getEmergencyContactForStep = (stepName: string, index: number) => {
   const name = stepName.toLowerCase()
   if (name.includes('이체') || name.includes('송금') || name.includes('계좌') || name.includes('금감원') || index === 2) {
     return {
-      agency: '금융감독원',
+      agency: '금융감독원 (금융 관련 지급 정지 대응)',
       number: '1332',
-      action: '피해 상담 및 계좌 지급정지',
+      action: '금융 피해 상담 및 계좌 지급정지',
       requiredDocs: ['이체 거래 내역서', '피해구제 신청서']
     }
   } else if (name.includes('설치') || name.includes('악성') || name.includes('스팸') || name.includes('도용')) {
     return {
-      agency: 'KISA',
+      agency: '한국인터넷진흥원 (KISA 보안 인프라 대응)',
       number: '118',
       action: '해킹/악성 앱 신고 및 스팸 제보',
       requiredDocs: ['스팸 문자 캡처본', '악성 APK 파일']
     }
   } else {
     return {
-      agency: '경찰청',
+      agency: '경찰청 (사이버 수사 인프라 연결)',
       number: '112',
       action: '피해 신고 및 사칭 조사 문의',
       requiredDocs: ['신분증 사본', '통화 녹음 파일', '사건 증거 자료']
     }
   }
+}
+
+const getStepTimeStr = (tIdx: number) => {
+  const duration = props.activeAnalysis.duration
+  const hangUpIdx = props.activeAnalysis.hangUpStepIndex
+  
+  if (tIdx > hangUpIdx) {
+    return '미도달'
+  }
+  
+  if (duration === 0) {
+    return '⏱ 통화 시작 직후'
+  }
+  
+  let seconds = 0
+  if (hangUpIdx === 0) {
+    seconds = duration
+  } else {
+    seconds = Math.round(((tIdx + 1) / (hangUpIdx + 1)) * duration)
+  }
+  
+  if (seconds === 0) seconds = 1
+  
+  return `⏱ 통화 시작 ${seconds}초 경과`
 }
 </script>
 
@@ -365,7 +384,7 @@ const getEmergencyContactForStep = (stepName: string, index: number) => {
 
           <!-- 타임라인 별 취약점 분석 및 맞춤 행동 대응 -->
           <div class="border-t border-slate-200/60 pt-3 space-y-3">
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">타임라인</p>
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">시간 경과별 취약점 &amp; 대응 분석</p>
             
             <div class="space-y-3">
               <div 
@@ -385,83 +404,101 @@ const getEmergencyContactForStep = (stepName: string, index: number) => {
                   <div class="flex items-center gap-2">
                     <span 
                       :class="[
-                        'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black',
+                        'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0',
                         tIdx <= activeAnalysis.hangUpStepIndex ? 'bg-[#4a5fec] text-white' : 'bg-slate-200 text-slate-500'
                       ]"
                     >
                       {{ tIdx + 1 }}
                     </span>
-                    <h6 class="font-extrabold text-xs text-slate-800">
-                      {{ tech.name }}
-                    </h6>
+                    <div class="flex flex-col text-left">
+                      <h6 class="font-extrabold text-xs text-slate-800">
+                        {{ tech.name }}
+                      </h6>
+                      <span 
+                        v-if="tIdx === activeAnalysis.hangUpStepIndex" 
+                        class="text-[9.5px] text-[#4a5fec] font-bold mt-0.5"
+                      >
+                        {{ getStepTimeStr(tIdx) }}
+                      </span>
+                    </div>
                   </div>
                   
                   <span 
                     v-if="tIdx === activeAnalysis.hangUpStepIndex" 
-                    class="bg-blue-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded"
+                    class="bg-blue-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded flex-shrink-0"
                   >
                     차단 지점
                   </span>
                   <span 
                     v-else-if="tIdx < activeAnalysis.hangUpStepIndex" 
-                    class="text-[9px] text-rose-600 font-bold"
+                    class="text-[9px] text-rose-600 font-bold flex-shrink-0"
                   >
                     통과
                   </span>
                   <span 
                     v-else 
-                    class="text-[9px] text-slate-450 font-bold"
+                    class="text-[9px] text-slate-450 font-bold flex-shrink-0"
                   >
                     미도달
                   </span>
                 </div>
 
-                <!-- 단계 설명 -->
-                <p class="text-[11px] text-slate-500 leading-normal pl-7">
+                <!-- 단계 설명: 오직 현재 차단(종료) 지점인 경우에만 노출 -->
+                <p 
+                  v-if="tIdx === activeAnalysis.hangUpStepIndex" 
+                  class="text-[11px] text-slate-500 leading-normal pl-7 animate-fade-in"
+                >
                   {{ tech.desc }}
                 </p>
 
                 <!-- 차단(종료) 지점일 경우 취약점 진단 분석 노출 -->
                 <div 
                   v-if="tIdx === activeAnalysis.hangUpStepIndex" 
-                  class="bg-slate-50 rounded-lg p-2.5 space-y-1.5 border border-slate-100 ml-7"
+                  class="bg-rose-50/40 rounded-lg p-2.5 space-y-1.5 border border-rose-100/80 ml-7 animate-fade-in"
                 >
                   <div>
-                    <span class="text-[9px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">취약 진단</span>
-                    <p class="text-[11px] text-slate-700 font-bold leading-normal mt-1">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-[9px] font-black text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">분석된 취약점</span>
+                    </div>
+                    <p class="text-[11px] text-slate-700 font-bold leading-normal mt-1.5">
                       {{ activeAnalysis.vulnerabilityExplanation }}
                     </p>
                   </div>
                 </div>
 
-                <!-- 단계별 위험에 비례한 전담 긴급 대응 기관 매핑 -->
+                <!-- 단계별 위험에 비례한 전담 긴급 대응 기관 매핑: 오직 현재 차단(종료) 지점인 경우에만 노출 -->
                 <div 
-                  v-if="tIdx <= activeAnalysis.hangUpStepIndex" 
-                  class="border-t border-slate-100 pt-2.5 ml-7 space-y-2 text-[11px]"
+                  v-if="tIdx === activeAnalysis.hangUpStepIndex" 
+                  class="border-t border-slate-100 pt-2.5 ml-7 text-[11px]"
                 >
-                  <div class="flex items-center justify-between">
-                    <div class="flex flex-col">
-                      <span class="font-bold text-slate-750">
-                        {{ getEmergencyContactForStep(tech.name, tIdx).agency }} 
-                        <span class="text-[10px] text-slate-400 font-medium">
-                          ({{ getEmergencyContactForStep(tech.name, tIdx).action }})
-                        </span>
+                  <div class="bg-blue-50/50 rounded-xl p-3 border border-blue-100/40 space-y-2 text-left shadow-3xs">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-[9px] font-black text-blue-600 bg-blue-50/80 px-1.5 py-0.5 rounded">대응 문의처</span>
+                      <span class="font-black text-[17px] text-[#4a5fec] flex-shrink-0 tracking-tight">
+                        ☎ {{ getEmergencyContactForStep(tech.name, tIdx).number }}
                       </span>
                     </div>
-                    <span class="font-extrabold text-[#4a5fec] flex-shrink-0">
-                      ☎ {{ getEmergencyContactForStep(tech.name, tIdx).number }}
-                    </span>
-                  </div>
-                  <!-- 필요 제출 문서 표시 -->
-                  <div class="flex flex-wrap items-center gap-1.5 pt-1 border-t border-dashed border-slate-100">
-                    <span class="text-[9px] text-slate-400 font-bold">필요 서류:</span>
-                    <span 
-                      v-for="(doc, dIdx) in getEmergencyContactForStep(tech.name, tIdx).requiredDocs" 
-                      :key="dIdx"
-                      class="bg-slate-100 text-slate-600 text-[9px] font-semibold px-1.5 py-0.5 rounded"
-                    >
-                      {{ doc }}
-                    </span>
+                    <div class="space-y-0.5">
+                      <p class="font-extrabold text-slate-800 text-[12px]">
+                        {{ getEmergencyContactForStep(tech.name, tIdx).agency }}
+                      </p>
+                      <p class="text-[10.5px] text-slate-500 font-bold leading-normal">
+                        {{ getEmergencyContactForStep(tech.name, tIdx).action }}
+                      </p>
+                    </div>
+                    <!-- 필요 제출 문서 표시 -->
+                    <div class="flex flex-col gap-1.5 pt-2 border-t border-dashed border-slate-200/60">
+                      <span class="text-[9px] text-slate-400 font-black">필요 서류</span>
+                      <div class="flex flex-wrap gap-1.5">
+                        <span 
+                          v-for="(doc, dIdx) in getEmergencyContactForStep(tech.name, tIdx).requiredDocs" 
+                          :key="dIdx"
+                          class="bg-white border border-slate-150 text-slate-600 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-3xs"
+                        >
+                          {{ doc }}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
